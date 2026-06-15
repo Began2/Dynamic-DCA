@@ -35,6 +35,8 @@
       padding: 26px 24px 60px;
     }
     .wrap { max-width: 1500px; margin: 0 auto; }
+    /* the chart block breaks out wider than the rest of the page */
+    .wide { max-width: 1760px; margin-left: auto; margin-right: auto; }
 
     header {
       display: flex; align-items: center; justify-content: space-between;
@@ -43,10 +45,6 @@
     }
     .brand { display: flex; align-items: center; gap: 11px; }
     .brand h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.4px; }
-    .brand .tag {
-      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--green); border: 1px solid var(--green-dim); border-radius: 5px; padding: 3px 7px;
-    }
     #status { font-size: 0.76rem; color: var(--text-dim); }
 
     .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
@@ -61,6 +59,7 @@
 
     /* ── Chart toolbar ── */
     .chart-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+    .chart-title { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); }
     .toolbar { display: flex; gap: 6px; flex-wrap: wrap; }
     .tool {
       display: inline-flex; align-items: center; gap: 6px;
@@ -73,11 +72,28 @@
     .tool svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .tool-sep { width: 1px; background: var(--border); margin: 2px 4px; }
 
+    /* range selector buttons */
+    .ranges { display: flex; gap: 4px; flex-wrap: wrap; }
+    .range-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 7px; padding: 5px 10px; font-size: 0.72rem; font-family: inherit; cursor: pointer; transition: all 0.12s; }
+    .range-btn:hover { color: var(--text); }
+    .range-btn.active { background: var(--panel-2); color: var(--text); border-color: var(--accent); }
+
     /* ── Chart container + drawing overlay ── */
     .chart-stage { position: relative; }
-    #tvchart { width: 100%; height: 560px; }
+    #tvchart { width: 100%; height: 600px; }
     #drawLayer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
     #drawLayer.armed { pointer-events: auto; cursor: crosshair; }
+
+    /* floating crosshair tooltip (always on) */
+    #tipbox {
+      position: absolute; z-index: 8; pointer-events: none; display: none;
+      background: rgba(20,20,21,0.95); border: 1px solid var(--border); border-radius: 9px;
+      padding: 9px 11px; font-size: 0.74rem; line-height: 1.5; min-width: 150px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    }
+    #tipbox .td { color: var(--text-dim); }
+    #tipbox .tv { color: var(--text); font-weight: 600; float: right; margin-left: 18px; }
+    #tipbox .trow { clear: both; }
 
     /* ── Risk meter (below chart) ── */
     .meter-panel { margin-top: 18px; }
@@ -104,17 +120,14 @@
     .bt-controls { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-end; margin-bottom: 18px; }
     .field { display: flex; flex-direction: column; gap: 6px; }
     .field label { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
-    .field input { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 9px 12px; font-family: inherit; font-size: 0.9rem; width: 160px; }
-    .field input:focus { outline: none; border-color: var(--accent); }
+    .field input, .field select { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 9px 12px; font-family: inherit; font-size: 0.9rem; width: 160px; }
+    .field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
+    .field select { cursor: pointer; }
     /* white calendar icon + dark popup for the date picker */
-    .field input[type="date"]::-webkit-calendar-picker-indicator {
-      filter: invert(1); opacity: 0.7; cursor: pointer;
-    }
-    .field input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
     .field input[type="date"] { color-scheme: dark; }
+    .field input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.7; cursor: pointer; }
+    .field input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
     /* number stepper styled to match the site */
-    .field input[type="number"]::-webkit-inner-spin-button,
-    .field input[type="number"]::-webkit-outer-spin-button { opacity: 1; filter: invert(0.7); }
     .num-field { position: relative; display: inline-flex; align-items: center; }
     .num-field input { -moz-appearance: textfield; appearance: textfield; padding-right: 38px; width: 160px; }
     .num-field input::-webkit-inner-spin-button,
@@ -124,10 +137,11 @@
       width: 22px; height: 14px; padding: 0; line-height: 1;
       background: var(--bg); border: 1px solid var(--border); color: var(--text-dim);
       border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-      font-size: 0.7rem; transition: all 0.12s;
+      transition: all 0.12s;
     }
     .num-stepper button:hover { color: var(--text); border-color: var(--accent); background: var(--panel-2); }
     .num-stepper svg { width: 9px; height: 9px; stroke: currentColor; fill: none; stroke-width: 2.5; }
+
     .bt-results { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .bt-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
     .bt-card .t { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 8px; }
@@ -143,73 +157,97 @@
   <header>
     <div class="brand">
       <h1>Dynamic DCA</h1>
-      <span class="tag">BTC · Risk Model</span>
     </div>
     <div id="status">Loading…</div>
   </header>
 
   <div class="stats-row" id="stats-row"></div>
+</div>
 
-  <!-- ── Main chart panel ── -->
-  <div class="panel">
-    <div class="chart-head">
-      <h2 style="margin:0">Price &amp; Risk · 8.8 Year Log Regression</h2>
-      <div class="toolbar" id="toolbar">
-        <!-- series type -->
-        <button class="tool active" data-series="candles" title="Candlesticks">
-          <svg viewBox="0 0 24 24"><rect x="6" y="7" width="4" height="9"/><line x1="8" y1="4" x2="8" y2="7"/><line x1="8" y1="16" x2="8" y2="20"/><rect x="14" y="9" width="4" height="7"/><line x1="16" y1="5" x2="16" y2="9"/><line x1="16" y1="16" x2="16" y2="19"/></svg>
-          Candles
-        </button>
-        <button class="tool" data-series="line" title="Line">
-          <svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 6"/></svg>
-          Line
-        </button>
-        <div class="tool-sep"></div>
-        <!-- log/linear -->
-        <button class="tool active" data-scale="log" title="Log / Linear scale">
-          <svg viewBox="0 0 24 24"><path d="M4 20 C 8 20, 8 6, 20 4"/><line x1="4" y1="20" x2="4" y2="4"/><line x1="4" y1="20" x2="20" y2="20"/></svg>
-          Log
-        </button>
-        <div class="tool-sep"></div>
-        <!-- drawing tools (hold &amp; drag to draw) -->
-        <button class="tool" data-draw="trend" title="Trend line — hold and drag">
-          <svg viewBox="0 0 24 24"><line x1="4" y1="19" x2="20" y2="6"/><circle cx="4" cy="19" r="1.6"/><circle cx="20" cy="6" r="1.6"/></svg>
-          Trend
-        </button>
-        <button class="tool" data-draw="measure" title="Measure % change — hold and drag">
-          <svg viewBox="0 0 24 24"><path d="M3 16l5-5 4 4 8-8"/><path d="M14 7h6v6"/></svg>
-          Measure %
-        </button>
-        <button class="tool" data-action="clear" title="Clear drawings">
-          <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>
-          Clear
-        </button>
-        <div class="tool-sep"></div>
-        <!-- reset view -->
-        <button class="tool" data-action="fit" title="Reset view / fit all">
-          <svg viewBox="0 0 24 24"><path d="M3 9V3h6"/><path d="M21 9V3h-6"/><path d="M3 15v6h6"/><path d="M21 15v6h-6"/></svg>
-          Reset View
-        </button>
+<!-- ── Main chart (breaks out wider, no card) ── -->
+<div class="wide">
+  <div class="chart-head">
+    <div class="chart-title" id="chart-title">Price &amp; Risk · Log Regression</div>
+    <div class="toolbar" id="toolbar">
+      <!-- series type -->
+      <button class="tool active" data-series="candles" title="Candlesticks">
+        <svg viewBox="0 0 24 24"><rect x="6" y="7" width="4" height="9"/><line x1="8" y1="4" x2="8" y2="7"/><line x1="8" y1="16" x2="8" y2="20"/><rect x="14" y="9" width="4" height="7"/><line x1="16" y1="5" x2="16" y2="9"/><line x1="16" y1="16" x2="16" y2="19"/></svg>
+        Candles
+      </button>
+      <button class="tool" data-series="line" title="Line">
+        <svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 6"/></svg>
+        Line
+      </button>
+      <div class="tool-sep"></div>
+      <!-- view mode: normal vs buy-zones -->
+      <button class="tool" data-mode="zones" title="Buy-zone heat map">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4"/><rect x="3" y="10" width="18" height="4"/><rect x="3" y="16" width="18" height="4"/></svg>
+        Buy Zones
+      </button>
+      <button class="tool" data-mode="riskline" title="Show the 0–1 risk score as a line along the bottom">
+        <svg viewBox="0 0 24 24"><path d="M3 18c3 0 4-9 7-9s4 6 7 6 2-7 4-7"/></svg>
+        Risk Line
+      </button>
+      <div class="tool-sep"></div>
+      <!-- drawing tools (hold & drag to draw) -->
+      <button class="tool" data-draw="trend" title="Trend line — hold and drag">
+        <svg viewBox="0 0 24 24"><line x1="4" y1="19" x2="20" y2="6"/><circle cx="4" cy="19" r="1.6"/><circle cx="20" cy="6" r="1.6"/></svg>
+        Trend
+      </button>
+      <button class="tool" data-draw="hline" title="Horizontal line — hold and drag">
+        <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/></svg>
+        H-Line
+      </button>
+      <button class="tool" data-draw="measure" title="Measure % change — hold and drag">
+        <svg viewBox="0 0 24 24"><path d="M3 16l5-5 4 4 8-8"/><path d="M14 7h6v6"/></svg>
+        Measure %
+      </button>
+      <button class="tool" data-draw="fib" title="Fibonacci retracement — hold and drag">
+        <svg viewBox="0 0 24 24"><line x1="3" y1="5" x2="21" y2="5"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="3" y1="20" x2="21" y2="20"/></svg>
+        Fib
+      </button>
+      <button class="tool" data-action="clear" title="Clear drawings">
+        <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>
+        Clear
+      </button>
+      <div class="tool-sep"></div>
+      <!-- reset view -->
+      <button class="tool" data-action="fit" title="Reset view / fit all">
+        <svg viewBox="0 0 24 24"><path d="M3 9V3h6"/><path d="M21 9V3h-6"/><path d="M3 15v6h6"/><path d="M21 15v6h-6"/></svg>
+        Reset View
+      </button>
+    </div>
+  </div>
+
+  <!-- range presets -->
+  <div class="chart-head" style="margin-bottom:10px">
+    <div class="ranges" id="ranges">
+      <button class="range-btn" data-range="365">1Y</button>
+      <button class="range-btn" data-range="1095">3Y</button>
+      <button class="range-btn active" data-range="1825">5Y</button>
+      <button class="range-btn" data-range="all">All</button>
+    </div>
+  </div>
+
+  <div class="chart-stage">
+    <div id="tvchart"></div>
+    <canvas id="drawLayer"></canvas>
+    <div id="tipbox"></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <!-- ── Risk meter (full site width) ── -->
+  <div class="meter-panel">
+    <div class="meter-top">
+      <div class="meter-score">
+        <span class="num" id="m-num">···</span>
+        <span class="lab" id="m-lab"></span>
       </div>
+      <div class="meter-action" id="m-action"></div>
     </div>
-
-    <div class="chart-stage">
-      <div id="tvchart"></div>
-      <canvas id="drawLayer"></canvas>
-    </div>
-
-    <!-- ── Risk meter, below the graph ── -->
-    <div class="meter-panel">
-      <div class="meter-top">
-        <div class="meter-score">
-          <span class="num" id="m-num">···</span>
-          <span class="lab" id="m-lab"></span>
-        </div>
-        <div class="meter-action" id="m-action"></div>
-      </div>
-      <div class="bar"><div class="needle" id="m-needle"></div></div>
-      <div class="bar-scale"><span>0.0 · Buy</span><span>0.25</span><span>0.5</span><span>0.75</span><span>1.0 · Sell</span></div>
-    </div>
+    <div class="bar"><div class="needle" id="m-needle"></div></div>
+    <div class="bar-scale"><span>0.0 · Buy</span><span>0.25</span><span>0.5</span><span>0.75</span><span>1.0 · Sell</span></div>
   </div>
 
   <!-- ── Lower: histogram + band table ── -->
@@ -231,7 +269,7 @@
   <div class="panel">
     <h2>Backtest · Dynamic DCA vs. Flat DCA</h2>
     <div class="bt-controls">
-      <div class="field"><label>Weekly Budget ($)</label>
+      <div class="field"><label>Contribution ($)</label>
         <div class="num-field">
           <input id="bt-amount" type="number" value="100" min="1" step="10" />
           <div class="num-stepper">
@@ -240,11 +278,19 @@
           </div>
         </div>
       </div>
-      <div class="field"><label>Start From</label><input id="bt-start" type="date" /></div>
+      <div class="field"><label>Frequency</label>
+        <select id="bt-freq">
+          <option value="1">Daily</option>
+          <option value="7" selected>Weekly</option>
+          <option value="30">Monthly</option>
+          <option value="0">Lump sum (once)</option>
+        </select>
+      </div>
+      <div class="field"><label>Start</label><input id="bt-start" type="date" /></div>
+      <div class="field"><label>End</label><input id="bt-end" type="date" /></div>
     </div>
     <div class="bt-results" id="bt-results"></div>
   </div>
-
 </div>
 
 <script>
@@ -261,6 +307,7 @@ const BANDS = [
 ];
 const getBand = (r) => BANDS.find(b => r >= b.min && r < b.max) ?? BANDS[BANDS.length - 1];
 const fmtUSD = (v, d = 0) => '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: d });
+const isoDay = (sec) => new Date(sec * 1000).toISOString().slice(0, 10);
 
 /* ═══════════════════════════════════════════════════════════════════════════
    2. DATA — baked OHLC history + live latest close
@@ -312,22 +359,33 @@ function computeRisk(bars, m, b) {
   }));
 }
 
+// Given a risk level (0..1), what price corresponds to it today/at time t?
+// Invert the normalization: dev = lo + risk*(hi-lo); price = trend * e^dev
+let DEV_LO = 0, DEV_HI = 1, SLOPE = 0, INTER = 0;
+function priceForRisk(tSec, risk) {
+  const dev = DEV_LO + risk * (DEV_HI - DEV_LO);
+  return trendAt(tSec, SLOPE, INTER) * Math.exp(dev);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    4. STATE
    ═══════════════════════════════════════════════════════════════════════════ */
 let RESULTS = [];
-let chart, candleSeries, lineSeries, trendSeries, riskSeries, priceScaleLog = true;
+let chart, priceChart, candleSeries, lineSeries, trendSeries, riskSeries;
+let zonesOn = false;
+let zoneSeries = [];   // band area series for buy-zone mode
 
 /* ═══════════════════════════════════════════════════════════════════════════
    5. TRADINGVIEW CHART
+   Price pane (right axis) + a separate synced Risk pane below it. Two panes
+   means risk no longer fights the price scale — fixes the zoom drift bug.
    ═══════════════════════════════════════════════════════════════════════════ */
 function buildChart() {
   const el = document.getElementById('tvchart');
   chart = LightweightCharts.createChart(el, {
     layout: { background: { color: 'transparent' }, textColor: '#8a8a8d', fontFamily: 'Segoe UI, system-ui, sans-serif' },
     grid: { vertLines: { color: '#1a1a1c' }, horzLines: { color: '#1a1a1c' } },
-    rightPriceScale: { borderColor: '#262628', mode: priceScaleLog ? LightweightCharts.PriceScaleMode.Logarithmic : LightweightCharts.PriceScaleMode.Normal },
-    leftPriceScale:  { visible: true, borderColor: '#262628' },
+    rightPriceScale: { borderColor: '#262628', mode: LightweightCharts.PriceScaleMode.Logarithmic, scaleMargins: { top: 0.12, bottom: 0.12 } },
     timeScale: { borderColor: '#262628', timeVisible: false, fixLeftEdge: true, fixRightEdge: true, lockVisibleTimeRangeOnResize: true },
     crosshair: {
       mode: LightweightCharts.CrosshairMode.Normal,
@@ -337,18 +395,28 @@ function buildChart() {
     handleScroll: true, handleScale: true,
   });
 
+  // price + trend on the right (log) scale
   candleSeries = chart.addCandlestickSeries({
     upColor: '#2ecc71', downColor: '#e74c3c', borderVisible: false,
     wickUpColor: '#2ecc71', wickDownColor: '#e74c3c', priceScaleId: 'right',
   });
-  lineSeries = chart.addLineSeries({ color: '#f5f5f5', lineWidth: 2, priceScaleId: 'right', visible: false });
+  lineSeries = chart.addLineSeries({ color: '#4d9fff', lineWidth: 2, priceScaleId: 'right', visible: false });
   trendSeries = chart.addLineSeries({ color: '#e6c84f', lineWidth: 2, lineStyle: 2, priceScaleId: 'right', crosshairMarkerVisible: false });
-  riskSeries = chart.addLineSeries({ color: '#9a9a9d', lineWidth: 2, priceScaleId: 'left', crosshairMarkerVisible: false });
+
+  // risk on its OWN scale, pinned to the bottom strip — OFF by default (Buy Zones shows risk better)
+  riskSeries = chart.addLineSeries({
+    color: '#9a9a9d', lineWidth: 2, priceScaleId: 'risk', visible: false,
+    crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false,
+  });
+  chart.priceScale('risk').applyOptions({ scaleMargins: { top: 0.82, bottom: 0.02 }, borderColor: '#262628' });
 
   // keep drawing-overlay canvas sized to the chart
   const ro = new ResizeObserver(() => { sizeDrawLayer(); redrawDrawings(); });
   ro.observe(el);
   chart.timeScale().subscribeVisibleLogicalRangeChange(() => redrawDrawings());
+
+  // always-on crosshair tooltip
+  chart.subscribeCrosshairMove(onCrosshair);
 }
 
 function pushData() {
@@ -356,85 +424,154 @@ function pushData() {
   lineSeries.setData(RESULTS.map(r => ({ time: r.t, value: r.c })));
   trendSeries.setData(RESULTS.map(r => ({ time: r.t, value: r.trend })));
   riskSeries.setData(RESULTS.map(r => ({ time: r.t, value: r.risk })));
-  chart.timeScale().fitContent();
+}
+
+/* ── Buy-zone heat map: horizontal price bands colored by risk band ──
+   Each band's price ceiling is priceForRisk(t, band.max), so the colored
+   areas curve upward with the regression — like the reference chart. */
+function buildZones() {
+  // build from bottom band up, each as an area series filled to its top price
+  for (const b of [...BANDS].reverse()) {
+    const s = chart.addAreaSeries({
+      priceScaleId: 'right', lineWidth: 0,
+      topColor: hexA(b.hex, 0.22), bottomColor: hexA(b.hex, 0.06), lineColor: 'transparent',
+      crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false, visible: false,
+      // do NOT let the colored zones drive the price axis — only candles/line set the scale,
+      // otherwise the top band (~$2M) squishes all the real candles to the bottom.
+      autoscaleInfoProvider: () => null,
+    });
+    s.setData(RESULTS.map(r => ({ time: r.t, value: priceForRisk(r.t, b.max) })));
+    s._band = b;
+    zoneSeries.push(s);
+  }
+}
+function hexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+function setZones(on) {
+  zonesOn = on;
+  zoneSeries.forEach(s => s.applyOptions({ visible: on }));
+  document.getElementById('chart-title').textContent = on
+    ? 'Buy Zones · Price colored by accumulation multiplier'
+    : 'Price & Risk · Log Regression';
+  redrawDrawings();
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   6. DRAWING TOOLS — overlay canvas. Stores drawings in price/time coords
-      so they stay anchored when you zoom/pan.
+   6. CROSSHAIR TOOLTIP (always on)
+   ═══════════════════════════════════════════════════════════════════════════ */
+const tip = document.getElementById('tipbox');
+const byTime = new Map();
+function onCrosshair(param) {
+  if (!param.time || !param.point) { tip.style.display = 'none'; return; }
+  const r = byTime.get(param.time);
+  if (!r) { tip.style.display = 'none'; return; }
+  const band = getBand(r.risk);
+  tip.innerHTML =
+    `<div class="trow"><span class="td">${isoDay(r.t)}</span></div>` +
+    `<div class="trow"><span class="td">Open</span><span class="tv">${fmtUSD(r.o)}</span></div>` +
+    `<div class="trow"><span class="td">High</span><span class="tv">${fmtUSD(r.h)}</span></div>` +
+    `<div class="trow"><span class="td">Low</span><span class="tv">${fmtUSD(r.l)}</span></div>` +
+    `<div class="trow"><span class="td">Close</span><span class="tv">${fmtUSD(r.c)}</span></div>` +
+    `<div class="trow"><span class="td">Fair Value</span><span class="tv">${fmtUSD(r.trend)}</span></div>` +
+    `<div class="trow"><span class="td">Risk</span><span class="tv" style="color:${band.hex}">${r.risk.toFixed(3)} · ${band.label}</span></div>`;
+  const stage = document.getElementById('tvchart').getBoundingClientRect();
+  let x = param.point.x + 18, y = param.point.y + 18;
+  if (x + 190 > stage.width) x = param.point.x - 190;
+  if (y + 170 > stage.height) y = param.point.y - 170;
+  tip.style.left = Math.max(0, x) + 'px';
+  tip.style.top = Math.max(0, y) + 'px';
+  tip.style.display = 'block';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. DRAWING TOOLS — overlay canvas. Hold & drag. Stored in time/price coords
+      so they stay anchored when you zoom/pan; clipped to chart bounds so they
+      never spill outside the graph.
    ═══════════════════════════════════════════════════════════════════════════ */
 const drawCanvas = document.getElementById('drawLayer');
 const dctx = drawCanvas.getContext('2d');
-let drawMode = null;           // 'trend' | 'measure' | null
-let drawings = [];             // {type, points:[{time,price}], reveal:0..1}
-let dragging = null;           // {type, start:{time,price}, end:{time,price}}
+let drawMode = null;           // 'trend' | 'hline' | 'measure' | 'fib' | null
+let drawings = [];             // {type, points:[{time,price}], reveal}
+let dragging = null;
 
 function sizeDrawLayer() {
   const r = document.getElementById('tvchart').getBoundingClientRect();
   drawCanvas.width = r.width; drawCanvas.height = r.height;
 }
 function toXY(pt) {
-  const x = chart.timeScale().timeToCoordinate(pt.time);
-  const y = candleSeries.priceToCoordinate(pt.price);
-  return { x, y };
+  return { x: chart.timeScale().timeToCoordinate(pt.time), y: candleSeries.priceToCoordinate(pt.price) };
 }
-// Convert a mouse event to {time, price} on the chart
 function eventToPoint(e) {
   const rect = drawCanvas.getBoundingClientRect();
   const x = e.clientX - rect.left, y = e.clientY - rect.top;
-  return {
-    time: chart.timeScale().coordinateToTime(x),
-    price: candleSeries.coordinateToPrice(y),
-    x, y,
-  };
+  return { time: chart.timeScale().coordinateToTime(x), price: candleSeries.coordinateToPrice(y), x, y };
 }
 
-// Draw one trend/measure segment. `progress` (0..1) animates how much of the
-// line is revealed — used for the smooth "grow" effect after you release.
 function drawSegment(d, progress = 1) {
-  const a = toXY(d.points[0]), b = toXY(d.points[1]);
-  if (a.x == null || b.x == null || a.y == null || b.y == null) return;
-  const ex = a.x + (b.x - a.x) * progress;
-  const ey = a.y + (b.y - a.y) * progress;
+  const a = toXY(d.points[0]), b = toXY(d.points[1] || d.points[0]);
+  if (a.x == null || a.y == null) return;
+  // clip everything to the chart area so drawings never spill outside
+  dctx.save();
+  dctx.beginPath(); dctx.rect(0, 0, drawCanvas.width, drawCanvas.height); dctx.clip();
 
-  dctx.lineWidth = 1.6;
+  if (d.type === 'hline') {
+    dctx.lineWidth = 1.6; dctx.strokeStyle = '#e6c84f'; dctx.setLineDash([]);
+    dctx.beginPath(); dctx.moveTo(0, a.y); dctx.lineTo(drawCanvas.width * progress, a.y); dctx.stroke();
+    dctx.fillStyle = '#e6c84f';
+    dctx.font = '600 11px Segoe UI'; dctx.fillText(fmtUSD(d.points[0].price), 6, a.y - 5);
+    dctx.restore(); return;
+  }
+  if (b.x == null || b.y == null) { dctx.restore(); return; }
+  const ex = a.x + (b.x - a.x) * progress, ey = a.y + (b.y - a.y) * progress;
+
+  if (d.type === 'fib') {
+    drawFib(a, b, progress); dctx.restore(); return;
+  }
+
+  dctx.lineWidth = 1.6; dctx.setLineDash([]);
   dctx.strokeStyle = d.type === 'measure' ? '#6fcf97' : '#e6c84f';
   dctx.beginPath(); dctx.moveTo(a.x, a.y); dctx.lineTo(ex, ey); dctx.stroke();
-
-  // endpoint dots
   dctx.fillStyle = dctx.strokeStyle;
   for (const p of [a, { x: ex, y: ey }]) { dctx.beginPath(); dctx.arc(p.x, p.y, 3, 0, 7); dctx.fill(); }
 
-  // measure tool: show % change + $ delta in a little label at the end
   if (d.type === 'measure' && progress > 0.15) {
     const p0 = d.points[0].price, p1 = d.points[1].price;
     const pct = (p1 - p0) / p0 * 100;
-    const txt = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%   ${pct >= 0 ? '+' : '−'}$${Math.abs(p1 - p0).toLocaleString(undefined,{maximumFractionDigits:0})}`;
-    dctx.font = '600 12px Segoe UI, system-ui, sans-serif';
+    const txt = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%   ${pct >= 0 ? '+' : '−'}${fmtUSD(Math.abs(p1 - p0))}`;
+    dctx.font = '600 12px Segoe UI';
     const w = dctx.measureText(txt).width;
     const lx = ex + 8, ly = ey - 10;
-    dctx.fillStyle = 'rgba(20,20,21,0.92)';
-    dctx.fillRect(lx - 6, ly - 14, w + 12, 22);
+    dctx.fillStyle = 'rgba(20,20,21,0.92)'; dctx.fillRect(lx - 6, ly - 14, w + 12, 22);
     dctx.strokeStyle = '#262628'; dctx.lineWidth = 1; dctx.strokeRect(lx - 6, ly - 14, w + 12, 22);
-    dctx.fillStyle = pct >= 0 ? '#6fcf97' : '#e57373';
-    dctx.fillText(txt, lx, ly + 2);
+    dctx.fillStyle = pct >= 0 ? '#6fcf97' : '#e57373'; dctx.fillText(txt, lx, ly + 2);
+  }
+  dctx.restore();
+}
+
+const FIBS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+function drawFib(a, b, progress) {
+  const x0 = Math.min(a.x, b.x), x1 = x0 + Math.abs(b.x - a.x) * progress;
+  dctx.font = '600 10px Segoe UI';
+  for (const f of FIBS) {
+    const y = a.y + (b.y - a.y) * f;
+    dctx.strokeStyle = 'rgba(230,200,79,0.55)'; dctx.lineWidth = 1; dctx.setLineDash([4, 4]);
+    dctx.beginPath(); dctx.moveTo(x0, y); dctx.lineTo(x1, y); dctx.stroke();
+    dctx.setLineDash([]);
+    dctx.fillStyle = '#e6c84f'; dctx.fillText(f.toFixed(3), x1 + 4, y + 3);
   }
 }
 
 function redrawDrawings() {
   dctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   for (const d of drawings) drawSegment(d, d.reveal ?? 1);
-  if (dragging && dragging.start && dragging.end) {
+  if (dragging && dragging.start && dragging.end)
     drawSegment({ type: dragging.type, points: [dragging.start, dragging.end] }, 1);
-  }
 }
 
-function armDraw(mode) {
-  drawMode = mode; dragging = null;
-  drawCanvas.classList.toggle('armed', !!mode);
-}
+function armDraw(mode) { drawMode = mode; dragging = null; drawCanvas.classList.toggle('armed', !!mode); }
 
-// ── Hold-to-draw: press, drag, release ──
 drawCanvas.addEventListener('mousedown', (e) => {
   if (!drawMode) return;
   const p = eventToPoint(e);
@@ -450,38 +587,32 @@ drawCanvas.addEventListener('mousemove', (e) => {
 });
 window.addEventListener('mouseup', () => {
   if (!dragging) return;
-  const { start, end, type } = dragging;
-  dragging = null;
-  // ignore tiny accidental clicks
+  const { start, end, type } = dragging; dragging = null;
   const a = toXY(start), b = toXY(end);
-  if (a.x != null && b.x != null && Math.hypot(b.x - a.x, b.y - a.y) > 6) {
+  const moved = a.x != null && b.x != null && Math.hypot(b.x - a.x, b.y - a.y) > 6;
+  if (type === 'hline' || moved) {
     const d = { type, points: [start, end], reveal: 0 };
-    drawings.push(d);
-    animateReveal(d);
+    drawings.push(d); animateReveal(d);
   }
-  finishDraw();
-  redrawDrawings();
+  finishDraw(); redrawDrawings();
 });
 
-// smooth grow-in animation after release
 function animateReveal(d) {
   const t0 = performance.now(), dur = 320;
   (function step(now) {
     const k = Math.min(1, (now - t0) / dur);
-    d.reveal = 1 - Math.pow(1 - k, 3);   // ease-out cubic
+    d.reveal = 1 - Math.pow(1 - k, 3);
     redrawDrawings();
     if (k < 1) requestAnimationFrame(step);
   })(performance.now());
 }
-
 function finishDraw() {
-  drawMode = null;
-  drawCanvas.classList.remove('armed');
+  drawMode = null; drawCanvas.classList.remove('armed');
   document.querySelectorAll('.tool[data-draw]').forEach(b => b.classList.remove('active'));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   7. TOOLBAR WIRING
+   8. TOOLBAR + RANGE WIRING
    ═══════════════════════════════════════════════════════════════════════════ */
 function wireToolbar() {
   const tb = document.getElementById('toolbar');
@@ -495,30 +626,63 @@ function wireToolbar() {
       candleSeries.applyOptions({ visible: candles });
       lineSeries.applyOptions({ visible: !candles });
     }
-    else if (btn.dataset.scale) {
-      priceScaleLog = !priceScaleLog;
-      chart.priceScale('right').applyOptions({ mode: priceScaleLog ? LightweightCharts.PriceScaleMode.Logarithmic : LightweightCharts.PriceScaleMode.Normal });
-      btn.classList.toggle('active', priceScaleLog);
-      btn.lastChild.textContent = priceScaleLog ? ' Log' : ' Linear';
+    else if (btn.dataset.mode === 'zones') {
+      const on = !btn.classList.contains('active');
+      btn.classList.toggle('active', on);
+      setZones(on);
+    }
+    else if (btn.dataset.mode === 'riskline') {
+      const on = !btn.classList.contains('active');
+      btn.classList.toggle('active', on);
+      riskSeries.applyOptions({ visible: on });
     }
     else if (btn.dataset.draw) {
       const wasActive = btn.classList.contains('active');
       document.querySelectorAll('.tool[data-draw]').forEach(b => b.classList.remove('active'));
-      if (wasActive) { armDraw(null); }
+      if (wasActive) armDraw(null);
       else { btn.classList.add('active'); armDraw(btn.dataset.draw); }
     }
     else if (btn.dataset.action === 'clear') { drawings = []; dragging = null; redrawDrawings(); }
-    else if (btn.dataset.action === 'fit') { chart.timeScale().fitContent(); }
+    else if (btn.dataset.action === 'fit') { applyRange(currentRange, true); }
   });
 }
 
-// custom +/- stepper for the weekly-budget input
+let currentRange = '1825';   // remembered so Reset View returns to the chosen window
+
+// Smoothly animate the visible time range from wherever it is now to [from,to].
+function animateRange(toFrom, toTo, animate = true) {
+  const ts = chart.timeScale();
+  const cur = ts.getVisibleRange();
+  if (!animate || !cur) { ts.setVisibleRange({ from: toFrom, to: toTo }); return; }
+  const f0 = cur.from, t0 = cur.to, t1 = performance.now(), dur = 420;
+  (function step(now) {
+    const k = Math.min(1, (now - t1) / dur);
+    const e = 1 - Math.pow(1 - k, 3);   // ease-out cubic
+    ts.setVisibleRange({ from: f0 + (toFrom - f0) * e, to: t0 + (toTo - t0) * e });
+    if (k < 1) requestAnimationFrame(step);
+  })(performance.now());
+}
+
+function applyRange(range, animate = true) {
+  const firstT = RESULTS[0].t, lastT = RESULTS[RESULTS.length - 1].t;
+  currentRange = range;
+  document.querySelectorAll('.range-btn').forEach(x => x.classList.toggle('active', x.dataset.range === range));
+  const from = range === 'all' ? firstT : Math.max(firstT, lastT - Number(range) * 86400);
+  animateRange(from, lastT, animate);
+}
+
+function wireRanges() {
+  document.getElementById('ranges').addEventListener('click', (e) => {
+    const b = e.target.closest('.range-btn'); if (!b) return;
+    applyRange(b.dataset.range, true);
+  });
+}
+
 function wireStepper() {
   const input = document.getElementById('bt-amount');
   document.querySelectorAll('.num-stepper button').forEach(b => {
     b.addEventListener('click', () => {
-      const step = Number(input.step) || 1;
-      const cur = Number(input.value) || 0;
+      const step = Number(input.step) || 1, cur = Number(input.value) || 0;
       input.value = Math.max(Number(input.min) || 0, cur + (b.dataset.step === 'up' ? step : -step));
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
@@ -526,7 +690,7 @@ function wireStepper() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   8. RENDER — stats, meter, histogram, table, backtest
+   9. RENDER — stats, meter, histogram, table, backtest
    ═══════════════════════════════════════════════════════════════════════════ */
 function renderStats() {
   const last = RESULTS[RESULTS.length - 1];
@@ -588,24 +752,38 @@ function renderBandTable(risk) {
 }
 
 function runBacktest() {
-  const weekly = Math.max(1, Number(document.getElementById('bt-amount').value) || 100);
-  const startVal = document.getElementById('bt-start').value;
-  const startSec = startVal ? new Date(startVal).getTime() / 1000 : RESULTS[0].t;
-  const data = RESULTS.filter(r => r.t >= startSec);
-  if (data.length < 7) { document.getElementById('bt-results').innerHTML = '<p style="color:var(--text-dim)">Pick an earlier start date.</p>'; return; }
+  const amount = Math.max(1, Number(document.getElementById('bt-amount').value) || 100);
+  const freq = Number(document.getElementById('bt-freq').value);   // 0 = lump sum
+  const sV = document.getElementById('bt-start').value, eV = document.getElementById('bt-end').value;
+  const startSec = sV ? new Date(sV).getTime() / 1000 : RESULTS[0].t;
+  const endSec = eV ? new Date(eV).getTime() / 1000 : RESULTS[RESULTS.length - 1].t;
+  const data = RESULTS.filter(r => r.t >= startSec && r.t <= endSec);
+  const res = document.getElementById('bt-results');
+  if (data.length < 2) { res.innerHTML = '<p style="color:var(--text-dim)">Widen the date range.</p>'; return; }
 
-  let flatSpent = 0, flatBtc = 0, dynSpent = 0, dynBtc = 0, lastWeek = -1;
-  for (const r of data) {
-    const week = Math.floor((r.t - data[0].t) / (7 * 86400));
-    if (week === lastWeek) continue;
-    lastWeek = week;
-    flatSpent += weekly; flatBtc += weekly / r.c;
-    const spend = weekly * Math.max(0, getBand(r.risk).mult);
-    dynSpent += spend; dynBtc += spend / r.c;
+  let flatSpent = 0, flatBtc = 0, dynSpent = 0, dynBtc = 0;
+
+  if (freq === 0) {
+    // lump sum: invest the full amount once at the start
+    const r = data[0];
+    flatSpent = amount; flatBtc = amount / r.c;
+    const spend = amount * Math.max(0, getBand(r.risk).mult);   // dynamic scales the one-shot by risk
+    dynSpent = spend; dynBtc = spend / r.c;
+  } else {
+    let lastBucket = -1;
+    for (const r of data) {
+      const bucket = Math.floor((r.t - data[0].t) / (freq * 86400));
+      if (bucket === lastBucket) continue;
+      lastBucket = bucket;
+      flatSpent += amount; flatBtc += amount / r.c;
+      const spend = amount * Math.max(0, getBand(r.risk).mult);
+      dynSpent += spend; dynBtc += spend / r.c;
+    }
   }
+
   const px = data[data.length - 1].c;
   const flatVal = flatBtc * px, dynVal = dynBtc * px;
-  const flatRoi = (flatVal - flatSpent) / flatSpent * 100;
+  const flatRoi = flatSpent > 0 ? (flatVal - flatSpent) / flatSpent * 100 : 0;
   const dynRoi = dynSpent > 0 ? (dynVal - dynSpent) / dynSpent * 100 : 0;
   const dynWins = dynRoi >= flatRoi;
   const card = (title, roi, spent, val, btc, win) => `
@@ -616,13 +794,13 @@ function runBacktest() {
       <div class="row"><span>Value now</span><b>${fmtUSD(val)}</b></div>
       <div class="row"><span>BTC held</span><b>${btc.toFixed(4)}</b></div>
     </div>`;
-  document.getElementById('bt-results').innerHTML =
+  res.innerHTML =
     card('Dynamic DCA', dynRoi, dynSpent, dynVal, dynBtc, dynWins) +
     card('Flat DCA', flatRoi, flatSpent, flatVal, flatBtc, !dynWins);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   9. MAIN
+   10. MAIN
    ═══════════════════════════════════════════════════════════════════════════ */
 (async () => {
   const status = document.getElementById('status');
@@ -630,27 +808,41 @@ function runBacktest() {
     status.textContent = 'Loading history…';
     const bars = await loadData();
     const { slope, intercept } = fitRegression(bars);
+    SLOPE = slope; INTER = intercept;
     RESULTS = computeRisk(bars, slope, intercept);
+    // capture dev bounds for the inverse (buy-zone) mapping
+    const devs = RESULTS.map(x => Math.log(x.c / x.trend));
+    DEV_LO = Math.min(...devs); DEV_HI = Math.max(...devs);
+    RESULTS.forEach(r => byTime.set(r.t, r));
     const last = RESULTS[RESULTS.length - 1];
 
     buildChart();
     sizeDrawLayer();
     pushData();
+    buildZones();
     wireToolbar();
+    wireRanges();
     wireStepper();
+
+    // default view: 5 years from today to today (no animation on first paint)
+    const firstT = RESULTS[0].t, lastT = last.t;
+    applyRange('1825', false);
 
     renderStats();
     renderMeter(last.risk);
     renderHistogram();
     renderBandTable(last.risk);
 
-    const fourYrsAgo = new Date(Date.now() - 4 * 365 * 86400000).toISOString().slice(0, 10);
-    document.getElementById('bt-start').value = fourYrsAgo;
-    document.getElementById('bt-amount').addEventListener('input', runBacktest);
-    document.getElementById('bt-start').addEventListener('input', runBacktest);
+    // backtest defaults: start 3y ago, end today, can't go before first data
+    const from3y = Math.max(firstT, lastT - 1095 * 86400);
+    const bs = document.getElementById('bt-start'), be = document.getElementById('bt-end');
+    bs.min = be.min = isoDay(firstT); bs.max = be.max = isoDay(lastT);
+    bs.value = isoDay(from3y); be.value = isoDay(lastT);
+    ['bt-amount', 'bt-freq', 'bt-start', 'bt-end'].forEach(id =>
+      document.getElementById(id).addEventListener('input', runBacktest));
     runBacktest();
 
-    status.textContent = `${RESULTS.length} days · slope ${slope.toFixed(2)} · updated ${new Date().toLocaleTimeString()}`;
+    status.textContent = `${RESULTS.length} days · ${isoDay(firstT)} → ${isoDay(lastT)} · slope ${slope.toFixed(2)}`;
   } catch (err) {
     status.textContent = 'Error: ' + err.message;
     console.error(err);
