@@ -34,7 +34,7 @@
       min-height: 100vh;
       padding: 26px 24px 60px;
     }
-    .wrap { max-width: 1180px; margin: 0 auto; }
+    .wrap { max-width: 1500px; margin: 0 auto; }
 
     header {
       display: flex; align-items: center; justify-content: space-between;
@@ -42,12 +42,6 @@
       padding-bottom: 16px; border-bottom: 1px solid var(--border);
     }
     .brand { display: flex; align-items: center; gap: 11px; }
-    .brand .mark {
-      width: 30px; height: 30px; border-radius: 8px;
-      background: linear-gradient(135deg, var(--green), var(--red));
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 800; color: #000; font-size: 0.9rem;
-    }
     .brand h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.4px; }
     .brand .tag {
       font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
@@ -81,7 +75,7 @@
 
     /* ── Chart container + drawing overlay ── */
     .chart-stage { position: relative; }
-    #tvchart { width: 100%; height: 460px; }
+    #tvchart { width: 100%; height: 560px; }
     #drawLayer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
     #drawLayer.armed { pointer-events: auto; cursor: crosshair; }
 
@@ -110,8 +104,30 @@
     .bt-controls { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-end; margin-bottom: 18px; }
     .field { display: flex; flex-direction: column; gap: 6px; }
     .field label { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
-    .field input { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 9px 12px; font-family: inherit; font-size: 0.9rem; width: 140px; }
+    .field input { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 9px 12px; font-family: inherit; font-size: 0.9rem; width: 160px; }
     .field input:focus { outline: none; border-color: var(--accent); }
+    /* white calendar icon + dark popup for the date picker */
+    .field input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1); opacity: 0.7; cursor: pointer;
+    }
+    .field input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+    .field input[type="date"] { color-scheme: dark; }
+    /* number stepper styled to match the site */
+    .field input[type="number"]::-webkit-inner-spin-button,
+    .field input[type="number"]::-webkit-outer-spin-button { opacity: 1; filter: invert(0.7); }
+    .num-field { position: relative; display: inline-flex; align-items: center; }
+    .num-field input { -moz-appearance: textfield; appearance: textfield; padding-right: 38px; width: 160px; }
+    .num-field input::-webkit-inner-spin-button,
+    .num-field input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    .num-stepper { position: absolute; right: 6px; display: flex; flex-direction: column; gap: 2px; }
+    .num-stepper button {
+      width: 22px; height: 14px; padding: 0; line-height: 1;
+      background: var(--bg); border: 1px solid var(--border); color: var(--text-dim);
+      border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; transition: all 0.12s;
+    }
+    .num-stepper button:hover { color: var(--text); border-color: var(--accent); background: var(--panel-2); }
+    .num-stepper svg { width: 9px; height: 9px; stroke: currentColor; fill: none; stroke-width: 2.5; }
     .bt-results { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .bt-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
     .bt-card .t { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 8px; }
@@ -137,7 +153,7 @@
   <!-- ── Main chart panel ── -->
   <div class="panel">
     <div class="chart-head">
-      <h2 style="margin:0">Price &amp; Risk — 8.8 Year Log Regression</h2>
+      <h2 style="margin:0">Price &amp; Risk · 8.8 Year Log Regression</h2>
       <div class="toolbar" id="toolbar">
         <!-- series type -->
         <button class="tool active" data-series="candles" title="Candlesticks">
@@ -155,24 +171,24 @@
           Log
         </button>
         <div class="tool-sep"></div>
-        <!-- drawing tools -->
-        <button class="tool" data-draw="hline" title="Horizontal line">
-          <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/></svg>
-          H-Line
-        </button>
-        <button class="tool" data-draw="trend" title="Trend line (click two points)">
+        <!-- drawing tools (hold &amp; drag to draw) -->
+        <button class="tool" data-draw="trend" title="Trend line — hold and drag">
           <svg viewBox="0 0 24 24"><line x1="4" y1="19" x2="20" y2="6"/><circle cx="4" cy="19" r="1.6"/><circle cx="20" cy="6" r="1.6"/></svg>
           Trend
+        </button>
+        <button class="tool" data-draw="measure" title="Measure % change — hold and drag">
+          <svg viewBox="0 0 24 24"><path d="M3 16l5-5 4 4 8-8"/><path d="M14 7h6v6"/></svg>
+          Measure %
         </button>
         <button class="tool" data-action="clear" title="Clear drawings">
           <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>
           Clear
         </button>
         <div class="tool-sep"></div>
-        <!-- reset zoom -->
-        <button class="tool" data-action="fit" title="Reset zoom / fit all">
+        <!-- reset view -->
+        <button class="tool" data-action="fit" title="Reset view / fit all">
           <svg viewBox="0 0 24 24"><path d="M3 9V3h6"/><path d="M21 9V3h-6"/><path d="M3 15v6h6"/><path d="M21 15v6h-6"/></svg>
-          Fit
+          Reset View
         </button>
       </div>
     </div>
@@ -186,10 +202,10 @@
     <div class="meter-panel">
       <div class="meter-top">
         <div class="meter-score">
-          <span class="num" id="m-num">—</span>
-          <span class="lab" id="m-lab">—</span>
+          <span class="num" id="m-num">···</span>
+          <span class="lab" id="m-lab"></span>
         </div>
-        <div class="meter-action" id="m-action">—</div>
+        <div class="meter-action" id="m-action"></div>
       </div>
       <div class="bar"><div class="needle" id="m-needle"></div></div>
       <div class="bar-scale"><span>0.0 · Buy</span><span>0.25</span><span>0.5</span><span>0.75</span><span>1.0 · Sell</span></div>
@@ -213,9 +229,17 @@
 
   <!-- ── Backtest ── -->
   <div class="panel">
-    <h2>Backtest — Dynamic DCA vs. Flat DCA</h2>
+    <h2>Backtest · Dynamic DCA vs. Flat DCA</h2>
     <div class="bt-controls">
-      <div class="field"><label>Weekly Budget ($)</label><input id="bt-amount" type="number" value="100" min="1" /></div>
+      <div class="field"><label>Weekly Budget ($)</label>
+        <div class="num-field">
+          <input id="bt-amount" type="number" value="100" min="1" step="10" />
+          <div class="num-stepper">
+            <button type="button" data-step="up" aria-label="Increase"><svg viewBox="0 0 24 24"><polyline points="6 15 12 9 18 15"/></svg></button>
+            <button type="button" data-step="down" aria-label="Decrease"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
+          </div>
+        </div>
+      </div>
       <div class="field"><label>Start From</label><input id="bt-start" type="date" /></div>
     </div>
     <div class="bt-results" id="bt-results"></div>
@@ -304,7 +328,7 @@ function buildChart() {
     grid: { vertLines: { color: '#1a1a1c' }, horzLines: { color: '#1a1a1c' } },
     rightPriceScale: { borderColor: '#262628', mode: priceScaleLog ? LightweightCharts.PriceScaleMode.Logarithmic : LightweightCharts.PriceScaleMode.Normal },
     leftPriceScale:  { visible: true, borderColor: '#262628' },
-    timeScale: { borderColor: '#262628', timeVisible: false },
+    timeScale: { borderColor: '#262628', timeVisible: false, fixLeftEdge: true, fixRightEdge: true, lockVisibleTimeRangeOnResize: true },
     crosshair: {
       mode: LightweightCharts.CrosshairMode.Normal,
       vertLine: { color: '#5a5a5d', width: 1, style: 2, labelBackgroundColor: '#1c1c1e' },
@@ -317,8 +341,8 @@ function buildChart() {
     upColor: '#2ecc71', downColor: '#e74c3c', borderVisible: false,
     wickUpColor: '#2ecc71', wickDownColor: '#e74c3c', priceScaleId: 'right',
   });
-  lineSeries = chart.addLineSeries({ color: '#cdd6e0', lineWidth: 2, priceScaleId: 'right', visible: false });
-  trendSeries = chart.addLineSeries({ color: '#5a6573', lineWidth: 1, lineStyle: 2, priceScaleId: 'right', crosshairMarkerVisible: false });
+  lineSeries = chart.addLineSeries({ color: '#f5f5f5', lineWidth: 2, priceScaleId: 'right', visible: false });
+  trendSeries = chart.addLineSeries({ color: '#e6c84f', lineWidth: 2, lineStyle: 2, priceScaleId: 'right', crosshairMarkerVisible: false });
   riskSeries = chart.addLineSeries({ color: '#9a9a9d', lineWidth: 2, priceScaleId: 'left', crosshairMarkerVisible: false });
 
   // keep drawing-overlay canvas sized to the chart
@@ -341,9 +365,9 @@ function pushData() {
    ═══════════════════════════════════════════════════════════════════════════ */
 const drawCanvas = document.getElementById('drawLayer');
 const dctx = drawCanvas.getContext('2d');
-let drawMode = null;           // 'hline' | 'trend' | null
-let drawings = [];             // {type, points:[{time,price}]}
-let pendingTrend = null;       // first click of a trend line
+let drawMode = null;           // 'trend' | 'measure' | null
+let drawings = [];             // {type, points:[{time,price}], reveal:0..1}
+let dragging = null;           // {type, start:{time,price}, end:{time,price}}
 
 function sizeDrawLayer() {
   const r = document.getElementById('tvchart').getBoundingClientRect();
@@ -354,40 +378,102 @@ function toXY(pt) {
   const y = candleSeries.priceToCoordinate(pt.price);
   return { x, y };
 }
-function redrawDrawings() {
-  dctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-  dctx.lineWidth = 1.4; dctx.strokeStyle = '#e6c84f';
-  for (const d of drawings) {
-    if (d.type === 'hline') {
-      const { y } = toXY(d.points[0]); if (y == null) continue;
-      dctx.beginPath(); dctx.moveTo(0, y); dctx.lineTo(drawCanvas.width, y); dctx.stroke();
-    } else if (d.type === 'trend' && d.points.length === 2) {
-      const a = toXY(d.points[0]), b = toXY(d.points[1]);
-      if (a.x == null || b.x == null || a.y == null || b.y == null) continue;
-      dctx.beginPath(); dctx.moveTo(a.x, a.y); dctx.lineTo(b.x, b.y); dctx.stroke();
-    }
-  }
-}
-function armDraw(mode) {
-  drawMode = mode; pendingTrend = null;
-  drawCanvas.classList.toggle('armed', !!mode);
-}
-drawCanvas.addEventListener('click', (e) => {
-  if (!drawMode) return;
+// Convert a mouse event to {time, price} on the chart
+function eventToPoint(e) {
   const rect = drawCanvas.getBoundingClientRect();
   const x = e.clientX - rect.left, y = e.clientY - rect.top;
-  const time = chart.timeScale().coordinateToTime(x);
-  const price = candleSeries.coordinateToPrice(y);
-  if (time == null || price == null) return;
-  if (drawMode === 'hline') {
-    drawings.push({ type: 'hline', points: [{ time, price }] });
-    finishDraw();
-  } else if (drawMode === 'trend') {
-    if (!pendingTrend) { pendingTrend = { time, price }; }
-    else { drawings.push({ type: 'trend', points: [pendingTrend, { time, price }] }); pendingTrend = null; finishDraw(); }
+  return {
+    time: chart.timeScale().coordinateToTime(x),
+    price: candleSeries.coordinateToPrice(y),
+    x, y,
+  };
+}
+
+// Draw one trend/measure segment. `progress` (0..1) animates how much of the
+// line is revealed — used for the smooth "grow" effect after you release.
+function drawSegment(d, progress = 1) {
+  const a = toXY(d.points[0]), b = toXY(d.points[1]);
+  if (a.x == null || b.x == null || a.y == null || b.y == null) return;
+  const ex = a.x + (b.x - a.x) * progress;
+  const ey = a.y + (b.y - a.y) * progress;
+
+  dctx.lineWidth = 1.6;
+  dctx.strokeStyle = d.type === 'measure' ? '#6fcf97' : '#e6c84f';
+  dctx.beginPath(); dctx.moveTo(a.x, a.y); dctx.lineTo(ex, ey); dctx.stroke();
+
+  // endpoint dots
+  dctx.fillStyle = dctx.strokeStyle;
+  for (const p of [a, { x: ex, y: ey }]) { dctx.beginPath(); dctx.arc(p.x, p.y, 3, 0, 7); dctx.fill(); }
+
+  // measure tool: show % change + $ delta in a little label at the end
+  if (d.type === 'measure' && progress > 0.15) {
+    const p0 = d.points[0].price, p1 = d.points[1].price;
+    const pct = (p1 - p0) / p0 * 100;
+    const txt = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%   ${pct >= 0 ? '+' : '−'}$${Math.abs(p1 - p0).toLocaleString(undefined,{maximumFractionDigits:0})}`;
+    dctx.font = '600 12px Segoe UI, system-ui, sans-serif';
+    const w = dctx.measureText(txt).width;
+    const lx = ex + 8, ly = ey - 10;
+    dctx.fillStyle = 'rgba(20,20,21,0.92)';
+    dctx.fillRect(lx - 6, ly - 14, w + 12, 22);
+    dctx.strokeStyle = '#262628'; dctx.lineWidth = 1; dctx.strokeRect(lx - 6, ly - 14, w + 12, 22);
+    dctx.fillStyle = pct >= 0 ? '#6fcf97' : '#e57373';
+    dctx.fillText(txt, lx, ly + 2);
   }
+}
+
+function redrawDrawings() {
+  dctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  for (const d of drawings) drawSegment(d, d.reveal ?? 1);
+  if (dragging && dragging.start && dragging.end) {
+    drawSegment({ type: dragging.type, points: [dragging.start, dragging.end] }, 1);
+  }
+}
+
+function armDraw(mode) {
+  drawMode = mode; dragging = null;
+  drawCanvas.classList.toggle('armed', !!mode);
+}
+
+// ── Hold-to-draw: press, drag, release ──
+drawCanvas.addEventListener('mousedown', (e) => {
+  if (!drawMode) return;
+  const p = eventToPoint(e);
+  if (p.time == null || p.price == null) return;
+  dragging = { type: drawMode, start: { time: p.time, price: p.price }, end: { time: p.time, price: p.price } };
+});
+drawCanvas.addEventListener('mousemove', (e) => {
+  if (!dragging) return;
+  const p = eventToPoint(e);
+  if (p.time == null || p.price == null) return;
+  dragging.end = { time: p.time, price: p.price };
   redrawDrawings();
 });
+window.addEventListener('mouseup', () => {
+  if (!dragging) return;
+  const { start, end, type } = dragging;
+  dragging = null;
+  // ignore tiny accidental clicks
+  const a = toXY(start), b = toXY(end);
+  if (a.x != null && b.x != null && Math.hypot(b.x - a.x, b.y - a.y) > 6) {
+    const d = { type, points: [start, end], reveal: 0 };
+    drawings.push(d);
+    animateReveal(d);
+  }
+  finishDraw();
+  redrawDrawings();
+});
+
+// smooth grow-in animation after release
+function animateReveal(d) {
+  const t0 = performance.now(), dur = 320;
+  (function step(now) {
+    const k = Math.min(1, (now - t0) / dur);
+    d.reveal = 1 - Math.pow(1 - k, 3);   // ease-out cubic
+    redrawDrawings();
+    if (k < 1) requestAnimationFrame(step);
+  })(performance.now());
+}
+
 function finishDraw() {
   drawMode = null;
   drawCanvas.classList.remove('armed');
@@ -421,8 +507,21 @@ function wireToolbar() {
       if (wasActive) { armDraw(null); }
       else { btn.classList.add('active'); armDraw(btn.dataset.draw); }
     }
-    else if (btn.dataset.action === 'clear') { drawings = []; pendingTrend = null; redrawDrawings(); }
+    else if (btn.dataset.action === 'clear') { drawings = []; dragging = null; redrawDrawings(); }
     else if (btn.dataset.action === 'fit') { chart.timeScale().fitContent(); }
+  });
+}
+
+// custom +/- stepper for the weekly-budget input
+function wireStepper() {
+  const input = document.getElementById('bt-amount');
+  document.querySelectorAll('.num-stepper button').forEach(b => {
+    b.addEventListener('click', () => {
+      const step = Number(input.step) || 1;
+      const cur = Number(input.value) || 0;
+      input.value = Math.max(Number(input.min) || 0, cur + (b.dataset.step === 'up' ? step : -step));
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
   });
 }
 
@@ -456,7 +555,7 @@ function renderMeter(risk) {
   const lab = document.getElementById('m-lab');
   lab.textContent = band.label + ' Risk'; lab.style.color = band.hex;
   document.getElementById('m-action').textContent =
-    band.mult > 0 ? `Buy ${band.mult}× your base amount` : band.mult === 0 ? 'Hold — no new buys' : 'Reduce / exit position';
+    band.mult > 0 ? `Buy ${band.mult}× your base amount` : band.mult === 0 ? 'Hold · no new buys' : 'Reduce / exit position';
   document.getElementById('m-needle').style.left = `${(risk * 100).toFixed(1)}%`;
 }
 
@@ -483,7 +582,7 @@ function renderBandTable(risk) {
     const active = risk >= b.min && risk < b.max;
     const m = b.mult > 0 ? `${b.mult}×` : b.mult === 0 ? 'Hold' : 'Sell';
     return `<tr class="${active ? 'active' : ''}">
-      <td><span class="dot" style="background:${b.hex}"></span>${b.label}${active ? ' ◀' : ''}</td>
+      <td><span class="dot" style="background:${b.hex}"></span>${b.label}${active ? ' · NOW' : ''}</td>
       <td>${b.min.toFixed(2)}–${b.max.toFixed(2)}</td><td>${b.action}</td><td>${m}</td></tr>`;
   }).join('');
 }
@@ -511,7 +610,7 @@ function runBacktest() {
   const dynWins = dynRoi >= flatRoi;
   const card = (title, roi, spent, val, btc, win) => `
     <div class="bt-card ${win ? 'winner' : ''}">
-      <div class="t">${title}${win ? ' · 🏆' : ''}</div>
+      <div class="t">${title}${win ? ' · WINNER' : ''}</div>
       <div class="big ${roi >= 0 ? 'up' : 'down'}">${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%</div>
       <div class="row"><span>Invested</span><b>${fmtUSD(spent)}</b></div>
       <div class="row"><span>Value now</span><b>${fmtUSD(val)}</b></div>
@@ -538,6 +637,7 @@ function runBacktest() {
     sizeDrawLayer();
     pushData();
     wireToolbar();
+    wireStepper();
 
     renderStats();
     renderMeter(last.risk);
