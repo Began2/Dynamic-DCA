@@ -5,171 +5,120 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dynamic DCA</title>
 
-  <!-- Chart.js: the charting library, loaded from a CDN -->
+  <!-- TradingView Lightweight Charts: free, pro trading chart engine -->
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <!-- Chart.js: still used for the small histogram bar chart -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
   <style>
-    /* ─────────────────────────────────────────────────────────────────────
-       DESIGN TOKENS — define colors once as CSS variables, reuse everywhere.
-       Monotone slate base. Green = low risk / buy. Red = high risk / sell.
-       ───────────────────────────────────────────────────────────────────── */
     :root {
-      --bg:        #0a0e14;
-      --panel:     #111720;
-      --panel-2:   #161d28;
-      --border:    #1f2733;
-      --text:      #e6edf3;
-      --text-dim:  #7d8896;
-      --text-mute: #4a525e;
+      --bg:        #0b0b0c;
+      --panel:     #141415;
+      --panel-2:   #1c1c1e;
+      --border:    #262628;
+      --text:      #ededed;
+      --text-dim:  #8a8a8d;
+      --text-mute: #525255;
       --green:     #2ecc71;
       --green-dim: #1e8449;
       --red:       #e74c3c;
       --red-dim:   #922b21;
       --yellow:    #f1c40f;
-      --accent:    #3b82f6;
-      --mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+      --accent:    #9a9a9d;
     }
-
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
     body {
-      background:
-        radial-gradient(1200px 600px at 50% -10%, #131b27 0%, var(--bg) 55%);
+      background: radial-gradient(1200px 600px at 50% -10%, #1a1a1c 0%, var(--bg) 55%);
       color: var(--text);
-      font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+      font-family: 'Segoe UI', system-ui, sans-serif;
       min-height: 100vh;
-      padding: 28px 20px 60px;
+      padding: 26px 24px 60px;
     }
-
     .wrap { max-width: 1180px; margin: 0 auto; }
 
-    /* ── Header ── */
     header {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-bottom: 28px;
-      padding-bottom: 18px;
-      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px; margin-bottom: 24px;
+      padding-bottom: 16px; border-bottom: 1px solid var(--border);
     }
-    .brand { display: flex; align-items: center; gap: 12px; }
-    .brand h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.4px; }
+    .brand { display: flex; align-items: center; gap: 11px; }
+    .brand .mark {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--green), var(--red));
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; color: #000; font-size: 0.9rem;
+    }
+    .brand h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.4px; }
     .brand .tag {
-      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.12em;
-      text-transform: uppercase; color: var(--green);
-      border: 1px solid var(--green-dim); border-radius: 5px;
-      padding: 3px 7px;
+      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--green); border: 1px solid var(--green-dim); border-radius: 5px; padding: 3px 7px;
     }
-    #status { font-size: 0.78rem; color: var(--text-dim); font-family: var(--mono); }
+    #status { font-size: 0.76rem; color: var(--text-dim); }
 
-    /* ── Generic panel ── */
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 20px;
-    }
-    .panel h2 {
-      font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 16px;
-    }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
+    .panel h2 { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 14px; }
 
-    /* ── Layout grids ── */
-    .stats-row {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 14px;
-      margin-bottom: 18px;
-    }
-    .main-grid {
-      display: grid;
-      grid-template-columns: 1fr 320px;
-      gap: 18px;
-      margin-bottom: 18px;
-    }
-    .lower-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 18px;
-      margin-bottom: 18px;
-    }
-    @media (max-width: 880px) {
-      .main-grid, .lower-grid { grid-template-columns: 1fr; }
-    }
-
-    /* ── Stat cards ── */
-    .stat {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 14px 16px;
-    }
-    .stat .k { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-mute); margin-bottom: 7px; }
-    .stat .v { font-size: 1.35rem; font-weight: 700; font-family: var(--mono); }
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 18px; }
+    .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+    .stat .k { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-mute); margin-bottom: 7px; }
+    .stat .v { font-size: 1.35rem; font-weight: 700; }
     .stat .d { font-size: 0.72rem; margin-top: 4px; color: var(--text-dim); }
     .up { color: var(--green); } .down { color: var(--red); }
 
-    /* ── Risk gauge (semicircle via conic-gradient) ── */
-    .gauge-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
-    .gauge {
-      position: relative;
-      width: 200px; height: 110px;
-      overflow: hidden;
-      margin-bottom: 8px;
+    /* ── Chart toolbar ── */
+    .chart-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+    .toolbar { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tool {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim);
+      border-radius: 8px; padding: 7px 11px; font-size: 0.76rem; font-family: inherit;
+      cursor: pointer; transition: all 0.15s;
     }
-    .gauge .arc {
-      width: 200px; height: 200px; border-radius: 50%;
-      background: conic-gradient(from 270deg,
-        var(--green) 0deg, var(--yellow) 90deg, var(--red) 180deg, transparent 180deg);
-      -webkit-mask: radial-gradient(circle at 50% 50%, transparent 56px, #000 57px);
-              mask: radial-gradient(circle at 50% 50%, transparent 56px, #000 57px);
-    }
-    .gauge .needle {
-      position: absolute; left: 50%; bottom: 0;
-      width: 3px; height: 92px; background: var(--text);
-      transform-origin: bottom center;
-      transform: rotate(-90deg);
-      transition: transform 0.8s cubic-bezier(.2,.8,.2,1);
-      border-radius: 3px;
-    }
-    .gauge .hub { position: absolute; left: 50%; bottom: -6px; width: 14px; height: 14px; background: var(--text); border-radius: 50%; transform: translateX(-50%); }
-    .gauge-val { font-size: 2.4rem; font-weight: 800; font-family: var(--mono); line-height: 1; }
-    .gauge-label { font-size: 0.8rem; margin-top: 4px; font-weight: 600; }
-    .gauge-action { font-size: 0.74rem; color: var(--text-dim); margin-top: 6px; text-align: center; }
+    .tool:hover { color: var(--text); border-color: #3a3a3d; }
+    .tool.active { background: var(--text); color: #000; border-color: var(--text); }
+    .tool svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .tool-sep { width: 1px; background: var(--border); margin: 2px 4px; }
 
-    canvas { width: 100% !important; }
+    /* ── Chart container + drawing overlay ── */
+    .chart-stage { position: relative; }
+    #tvchart { width: 100%; height: 460px; }
+    #drawLayer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+    #drawLayer.armed { pointer-events: auto; cursor: crosshair; }
 
-    /* ── Band table ── */
+    /* ── Risk meter (below chart) ── */
+    .meter-panel { margin-top: 18px; }
+    .meter-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; }
+    .meter-score { display: flex; align-items: baseline; gap: 12px; }
+    .meter-score .num { font-size: 2.6rem; font-weight: 800; line-height: 1; }
+    .meter-score .lab { font-size: 0.9rem; font-weight: 600; }
+    .meter-action { font-size: 0.85rem; color: var(--text-dim); }
+    .bar { position: relative; height: 16px; border-radius: 8px;
+      background: linear-gradient(to right, var(--green) 0%, #7fdca4 20%, var(--yellow) 45%, #e8a87c 62%, var(--red) 80%, var(--red-dim) 100%); }
+    .bar .needle { position: absolute; top: -5px; width: 4px; height: 26px; background: var(--text); border-radius: 3px; transform: translateX(-50%); transition: left 0.7s cubic-bezier(.2,.8,.2,1); box-shadow: 0 0 8px rgba(0,0,0,0.6); }
+    .bar-scale { display: flex; justify-content: space-between; font-size: 0.66rem; color: var(--text-mute); margin-top: 6px; }
+
+    .lower-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 18px 0; }
+    @media (max-width: 880px) { .lower-grid { grid-template-columns: 1fr; } }
+
     table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-    th { text-align: left; padding: 9px 10px; color: var(--text-mute); text-transform: uppercase; font-size: 0.64rem; letter-spacing: 0.08em; border-bottom: 1px solid var(--border); }
-    td { padding: 11px 10px; border-bottom: 1px solid #141a23; font-family: var(--mono); }
+    th { text-align: left; padding: 9px 10px; color: var(--text-mute); text-transform: uppercase; font-size: 0.62rem; letter-spacing: 0.08em; border-bottom: 1px solid var(--border); }
+    td { padding: 11px 10px; border-bottom: 1px solid #141a23; }
     tr:last-child td { border-bottom: none; }
     tr.active td { background: var(--panel-2); }
     .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 9px; vertical-align: middle; }
-    .here { color: var(--text); font-weight: 700; font-family: var(--mono); }
 
-    /* ── Backtest controls ── */
     .bt-controls { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-end; margin-bottom: 18px; }
     .field { display: flex; flex-direction: column; gap: 6px; }
-    .field label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
-    .field input {
-      background: var(--bg); border: 1px solid var(--border); color: var(--text);
-      border-radius: 8px; padding: 9px 12px; font-family: var(--mono); font-size: 0.9rem; width: 130px;
-    }
+    .field label { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
+    .field input { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 9px 12px; font-family: inherit; font-size: 0.9rem; width: 140px; }
     .field input:focus { outline: none; border-color: var(--accent); }
     .bt-results { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .bt-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
-    .bt-card .t { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 8px; }
-    .bt-card .big { font-size: 1.5rem; font-weight: 700; font-family: var(--mono); }
-    .bt-card .row { display: flex; justify-content: space-between; font-size: 0.78rem; font-family: var(--mono); color: var(--text-dim); margin-top: 6px; }
+    .bt-card .t { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 8px; }
+    .bt-card .big { font-size: 1.5rem; font-weight: 700; }
+    .bt-card .row { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-dim); margin-top: 6px; }
     .bt-card .row b { color: var(--text); font-weight: 600; }
     .winner { border-color: var(--green-dim); box-shadow: 0 0 0 1px var(--green-dim); }
-
-    footer { margin-top: 36px; text-align: center; font-size: 0.7rem; color: var(--text-mute); line-height: 1.8; }
-    footer a { color: var(--text-dim); text-decoration: none; }
-    footer a:hover { color: var(--text); }
   </style>
 </head>
 <body>
@@ -183,27 +132,67 @@
     <div id="status">Loading…</div>
   </header>
 
-  <!-- ── Stats row ── -->
   <div class="stats-row" id="stats-row"></div>
 
-  <!-- ── Main: chart + gauge ── -->
-  <div class="main-grid">
-    <div class="panel">
-      <h2>Price &amp; Risk — 8.8 Year Log Regression</h2>
-      <canvas id="mainChart" height="300"></canvas>
-    </div>
-    <div class="panel">
-      <h2>Current Risk</h2>
-      <div class="gauge-wrap">
-        <div class="gauge">
-          <div class="arc"></div>
-          <div class="needle" id="needle"></div>
-          <div class="hub"></div>
-        </div>
-        <div class="gauge-val" id="gauge-val">—</div>
-        <div class="gauge-label" id="gauge-label">—</div>
-        <div class="gauge-action" id="gauge-action">—</div>
+  <!-- ── Main chart panel ── -->
+  <div class="panel">
+    <div class="chart-head">
+      <h2 style="margin:0">Price &amp; Risk — 8.8 Year Log Regression</h2>
+      <div class="toolbar" id="toolbar">
+        <!-- series type -->
+        <button class="tool active" data-series="candles" title="Candlesticks">
+          <svg viewBox="0 0 24 24"><rect x="6" y="7" width="4" height="9"/><line x1="8" y1="4" x2="8" y2="7"/><line x1="8" y1="16" x2="8" y2="20"/><rect x="14" y="9" width="4" height="7"/><line x1="16" y1="5" x2="16" y2="9"/><line x1="16" y1="16" x2="16" y2="19"/></svg>
+          Candles
+        </button>
+        <button class="tool" data-series="line" title="Line">
+          <svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 6"/></svg>
+          Line
+        </button>
+        <div class="tool-sep"></div>
+        <!-- log/linear -->
+        <button class="tool active" data-scale="log" title="Log / Linear scale">
+          <svg viewBox="0 0 24 24"><path d="M4 20 C 8 20, 8 6, 20 4"/><line x1="4" y1="20" x2="4" y2="4"/><line x1="4" y1="20" x2="20" y2="20"/></svg>
+          Log
+        </button>
+        <div class="tool-sep"></div>
+        <!-- drawing tools -->
+        <button class="tool" data-draw="hline" title="Horizontal line">
+          <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/></svg>
+          H-Line
+        </button>
+        <button class="tool" data-draw="trend" title="Trend line (click two points)">
+          <svg viewBox="0 0 24 24"><line x1="4" y1="19" x2="20" y2="6"/><circle cx="4" cy="19" r="1.6"/><circle cx="20" cy="6" r="1.6"/></svg>
+          Trend
+        </button>
+        <button class="tool" data-action="clear" title="Clear drawings">
+          <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>
+          Clear
+        </button>
+        <div class="tool-sep"></div>
+        <!-- reset zoom -->
+        <button class="tool" data-action="fit" title="Reset zoom / fit all">
+          <svg viewBox="0 0 24 24"><path d="M3 9V3h6"/><path d="M21 9V3h-6"/><path d="M3 15v6h6"/><path d="M21 15v6h-6"/></svg>
+          Fit
+        </button>
       </div>
+    </div>
+
+    <div class="chart-stage">
+      <div id="tvchart"></div>
+      <canvas id="drawLayer"></canvas>
+    </div>
+
+    <!-- ── Risk meter, below the graph ── -->
+    <div class="meter-panel">
+      <div class="meter-top">
+        <div class="meter-score">
+          <span class="num" id="m-num">—</span>
+          <span class="lab" id="m-lab">—</span>
+        </div>
+        <div class="meter-action" id="m-action">—</div>
+      </div>
+      <div class="bar"><div class="needle" id="m-needle"></div></div>
+      <div class="bar-scale"><span>0.0 · Buy</span><span>0.25</span><span>0.5</span><span>0.75</span><span>1.0 · Sell</span></div>
     </div>
   </div>
 
@@ -222,198 +211,271 @@
     </div>
   </div>
 
-  <!-- ── Backtest simulator ── -->
+  <!-- ── Backtest ── -->
   <div class="panel">
     <h2>Backtest — Dynamic DCA vs. Flat DCA</h2>
     <div class="bt-controls">
-      <div class="field">
-        <label>Weekly Budget ($)</label>
-        <input id="bt-amount" type="number" value="100" min="1" />
-      </div>
-      <div class="field">
-        <label>Start From</label>
-        <input id="bt-start" type="date" />
-      </div>
+      <div class="field"><label>Weekly Budget ($)</label><input id="bt-amount" type="number" value="100" min="1" /></div>
+      <div class="field"><label>Start From</label><input id="bt-start" type="date" /></div>
     </div>
     <div class="bt-results" id="bt-results"></div>
   </div>
-
-  <footer>
-    Dynamic DCA · Log-regression risk model on 8.8 years of daily BTC data (Binance) · Live price via CoinGecko<br>
-    Educational tool. Not financial advice.
-  </footer>
 
 </div>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════════
-   1. CONFIG — the risk bands and what to do in each
+   1. CONFIG
    ═══════════════════════════════════════════════════════════════════════════ */
 const BANDS = [
-  { min: 0.00, max: 0.20, color: 'var(--green)',  hex: '#2ecc71', label: 'Very Low', action: 'Accumulate Hard', mult: 3.0 },
-  { min: 0.20, max: 0.40, color: '#7fdca4',       hex: '#7fdca4', label: 'Low',      action: 'Accumulate',      mult: 2.0 },
-  { min: 0.40, max: 0.55, color: 'var(--yellow)', hex: '#f1c40f', label: 'Moderate', action: 'DCA Normal',      mult: 1.0 },
-  { min: 0.55, max: 0.70, color: '#e8a87c',       hex: '#e8a87c', label: 'Elevated', action: 'Reduce / Hold',   mult: 0.5 },
-  { min: 0.70, max: 0.85, color: '#e74c3c',       hex: '#e74c3c', label: 'High',     action: 'Take Profits',    mult: 0.0 },
-  { min: 0.85, max: 1.01, color: 'var(--red-dim)',hex: '#922b21', label: 'Extreme',  action: 'Sell / Exit',     mult: -1.0 },
+  { min: 0.00, max: 0.20, hex: '#2ecc71', label: 'Very Low', action: 'Accumulate Hard', mult: 3.0 },
+  { min: 0.20, max: 0.40, hex: '#7fdca4', label: 'Low',      action: 'Accumulate',      mult: 2.0 },
+  { min: 0.40, max: 0.55, hex: '#f1c40f', label: 'Moderate', action: 'DCA Normal',      mult: 1.0 },
+  { min: 0.55, max: 0.70, hex: '#e8a87c', label: 'Elevated', action: 'Reduce / Hold',   mult: 0.5 },
+  { min: 0.70, max: 0.85, hex: '#e74c3c', label: 'High',     action: 'Take Profits',    mult: 0.0 },
+  { min: 0.85, max: 1.01, hex: '#922b21', label: 'Extreme',  action: 'Sell / Exit',     mult: -1.0 },
 ];
 const getBand = (r) => BANDS.find(b => r >= b.min && r < b.max) ?? BANDS[BANDS.length - 1];
+const fmtUSD = (v, d = 0) => '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: d });
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   2. DATA — load baked history (hybrid: file + one live price)
+   2. DATA — baked OHLC history + live latest close
    ═══════════════════════════════════════════════════════════════════════════ */
 async function loadData() {
-  // (a) baked multi-year history committed to the repo
-  const histRes = await fetch('btc-history.json');
-  const hist = await histRes.json();              // [[ts, price], ...]
-  let points = hist.map(([ts, price]) => ({ ts, price }));
-
-  // (b) try to append today's LIVE price from CoinGecko (free, no key)
+  const hist = await (await fetch('btc-history.json')).json();  // [{t,o,h,l,c}], t in seconds
+  let bars = hist.slice();
   try {
-    const liveRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
-    const live = await liveRes.json();
-    const livePrice = live?.bitcoin?.usd;
-    if (livePrice) {
-      const today = Date.now();
-      // replace last point if it's the same day, else append
-      const dayMs = 86400000;
-      if (today - points[points.length - 1].ts < dayMs)
-        points[points.length - 1] = { ts: today, price: livePrice };
-      else
-        points.push({ ts: today, price: livePrice });
+    const live = await (await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')).json();
+    const px = live?.bitcoin?.usd;
+    if (px) {
+      const todaySec = Math.floor(Date.now() / 1000);
+      const last = bars[bars.length - 1];
+      if (todaySec - last.t < 86400) {
+        last.c = px; last.h = Math.max(last.h, px); last.l = Math.min(last.l, px);
+      } else {
+        bars.push({ t: todaySec, o: px, h: px, l: px, c: px });
+      }
     }
-  } catch (e) { /* offline / rate-limited — baked data still works */ }
-
-  return points;
+  } catch (e) { /* baked data is enough */ }
+  return bars;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   3. MATH — log regression + risk normalization
+   3. MATH — log regression on closes
    ═══════════════════════════════════════════════════════════════════════════ */
-const GENESIS = Date.UTC(2009, 0, 3);
-const daysSince = (ts) => (ts - GENESIS) / 86400000;
+const GENESIS_SEC = Date.UTC(2009, 0, 3) / 1000;
+const daysSince = (tSec) => (tSec - GENESIS_SEC) / 86400;
 
-function fitRegression(points) {
-  let n = points.length, sx = 0, sy = 0, sxy = 0, sx2 = 0;
-  for (const p of points) {
-    const x = Math.log(daysSince(p.ts)), y = Math.log(p.price);
+function fitRegression(bars) {
+  let n = bars.length, sx = 0, sy = 0, sxy = 0, sx2 = 0;
+  for (const b of bars) {
+    const x = Math.log(daysSince(b.t)), y = Math.log(b.c);
     sx += x; sy += y; sxy += x * y; sx2 += x * x;
   }
   const slope = (n * sxy - sx * sy) / (n * sx2 - sx * sx);
   const intercept = (sy - slope * sx) / n;
   return { slope, intercept };
 }
-const trendAt = (ts, m, b) => Math.exp(m * Math.log(daysSince(ts)) + b);
+const trendAt = (tSec, m, b) => Math.exp(m * Math.log(daysSince(tSec)) + b);
 
-function computeRisk(points, m, b) {
-  const devs = points.map(p => Math.log(p.price / trendAt(p.ts, m, b)));
+function computeRisk(bars, m, b) {
+  const devs = bars.map(x => Math.log(x.c / trendAt(x.t, m, b)));
   const lo = Math.min(...devs), hi = Math.max(...devs);
-  return points.map((p, i) => ({
-    ts: p.ts, price: p.price, trend: trendAt(p.ts, m, b),
+  return bars.map((x, i) => ({
+    ...x,
+    trend: trendAt(x.t, m, b),
     risk: Math.max(0, Math.min(1, (devs[i] - lo) / (hi - lo))),
   }));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   4. RENDER — stats, gauge, charts, table, backtest
+   4. STATE
    ═══════════════════════════════════════════════════════════════════════════ */
-const fmtUSD = (v, d = 0) => '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: d });
-const dateLabel = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+let RESULTS = [];
+let chart, candleSeries, lineSeries, trendSeries, riskSeries, priceScaleLog = true;
 
-function renderStats(results) {
-  const last = results[results.length - 1];
-  const prev30 = results[results.length - 31] ?? results[0];
-  const chg30 = ((last.price - prev30.price) / prev30.price) * 100;
-  const ath = Math.max(...results.map(r => r.price));
-  const fromAth = ((last.price - ath) / ath) * 100;
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. TRADINGVIEW CHART
+   ═══════════════════════════════════════════════════════════════════════════ */
+function buildChart() {
+  const el = document.getElementById('tvchart');
+  chart = LightweightCharts.createChart(el, {
+    layout: { background: { color: 'transparent' }, textColor: '#8a8a8d', fontFamily: 'Segoe UI, system-ui, sans-serif' },
+    grid: { vertLines: { color: '#1a1a1c' }, horzLines: { color: '#1a1a1c' } },
+    rightPriceScale: { borderColor: '#262628', mode: priceScaleLog ? LightweightCharts.PriceScaleMode.Logarithmic : LightweightCharts.PriceScaleMode.Normal },
+    leftPriceScale:  { visible: true, borderColor: '#262628' },
+    timeScale: { borderColor: '#262628', timeVisible: false },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: { color: '#5a5a5d', width: 1, style: 2, labelBackgroundColor: '#1c1c1e' },
+      horzLine: { color: '#5a5a5d', width: 1, style: 2, labelBackgroundColor: '#1c1c1e' },
+    },
+    handleScroll: true, handleScale: true,
+  });
+
+  candleSeries = chart.addCandlestickSeries({
+    upColor: '#2ecc71', downColor: '#e74c3c', borderVisible: false,
+    wickUpColor: '#2ecc71', wickDownColor: '#e74c3c', priceScaleId: 'right',
+  });
+  lineSeries = chart.addLineSeries({ color: '#cdd6e0', lineWidth: 2, priceScaleId: 'right', visible: false });
+  trendSeries = chart.addLineSeries({ color: '#5a6573', lineWidth: 1, lineStyle: 2, priceScaleId: 'right', crosshairMarkerVisible: false });
+  riskSeries = chart.addLineSeries({ color: '#9a9a9d', lineWidth: 2, priceScaleId: 'left', crosshairMarkerVisible: false });
+
+  // keep drawing-overlay canvas sized to the chart
+  const ro = new ResizeObserver(() => { sizeDrawLayer(); redrawDrawings(); });
+  ro.observe(el);
+  chart.timeScale().subscribeVisibleLogicalRangeChange(() => redrawDrawings());
+}
+
+function pushData() {
+  candleSeries.setData(RESULTS.map(r => ({ time: r.t, open: r.o, high: r.h, low: r.l, close: r.c })));
+  lineSeries.setData(RESULTS.map(r => ({ time: r.t, value: r.c })));
+  trendSeries.setData(RESULTS.map(r => ({ time: r.t, value: r.trend })));
+  riskSeries.setData(RESULTS.map(r => ({ time: r.t, value: r.risk })));
+  chart.timeScale().fitContent();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   6. DRAWING TOOLS — overlay canvas. Stores drawings in price/time coords
+      so they stay anchored when you zoom/pan.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const drawCanvas = document.getElementById('drawLayer');
+const dctx = drawCanvas.getContext('2d');
+let drawMode = null;           // 'hline' | 'trend' | null
+let drawings = [];             // {type, points:[{time,price}]}
+let pendingTrend = null;       // first click of a trend line
+
+function sizeDrawLayer() {
+  const r = document.getElementById('tvchart').getBoundingClientRect();
+  drawCanvas.width = r.width; drawCanvas.height = r.height;
+}
+function toXY(pt) {
+  const x = chart.timeScale().timeToCoordinate(pt.time);
+  const y = candleSeries.priceToCoordinate(pt.price);
+  return { x, y };
+}
+function redrawDrawings() {
+  dctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  dctx.lineWidth = 1.4; dctx.strokeStyle = '#e6c84f';
+  for (const d of drawings) {
+    if (d.type === 'hline') {
+      const { y } = toXY(d.points[0]); if (y == null) continue;
+      dctx.beginPath(); dctx.moveTo(0, y); dctx.lineTo(drawCanvas.width, y); dctx.stroke();
+    } else if (d.type === 'trend' && d.points.length === 2) {
+      const a = toXY(d.points[0]), b = toXY(d.points[1]);
+      if (a.x == null || b.x == null || a.y == null || b.y == null) continue;
+      dctx.beginPath(); dctx.moveTo(a.x, a.y); dctx.lineTo(b.x, b.y); dctx.stroke();
+    }
+  }
+}
+function armDraw(mode) {
+  drawMode = mode; pendingTrend = null;
+  drawCanvas.classList.toggle('armed', !!mode);
+}
+drawCanvas.addEventListener('click', (e) => {
+  if (!drawMode) return;
+  const rect = drawCanvas.getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+  const time = chart.timeScale().coordinateToTime(x);
+  const price = candleSeries.coordinateToPrice(y);
+  if (time == null || price == null) return;
+  if (drawMode === 'hline') {
+    drawings.push({ type: 'hline', points: [{ time, price }] });
+    finishDraw();
+  } else if (drawMode === 'trend') {
+    if (!pendingTrend) { pendingTrend = { time, price }; }
+    else { drawings.push({ type: 'trend', points: [pendingTrend, { time, price }] }); pendingTrend = null; finishDraw(); }
+  }
+  redrawDrawings();
+});
+function finishDraw() {
+  drawMode = null;
+  drawCanvas.classList.remove('armed');
+  document.querySelectorAll('.tool[data-draw]').forEach(b => b.classList.remove('active'));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. TOOLBAR WIRING
+   ═══════════════════════════════════════════════════════════════════════════ */
+function wireToolbar() {
+  const tb = document.getElementById('toolbar');
+  tb.addEventListener('click', (e) => {
+    const btn = e.target.closest('.tool'); if (!btn) return;
+
+    if (btn.dataset.series) {
+      tb.querySelectorAll('[data-series]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const candles = btn.dataset.series === 'candles';
+      candleSeries.applyOptions({ visible: candles });
+      lineSeries.applyOptions({ visible: !candles });
+    }
+    else if (btn.dataset.scale) {
+      priceScaleLog = !priceScaleLog;
+      chart.priceScale('right').applyOptions({ mode: priceScaleLog ? LightweightCharts.PriceScaleMode.Logarithmic : LightweightCharts.PriceScaleMode.Normal });
+      btn.classList.toggle('active', priceScaleLog);
+      btn.lastChild.textContent = priceScaleLog ? ' Log' : ' Linear';
+    }
+    else if (btn.dataset.draw) {
+      const wasActive = btn.classList.contains('active');
+      document.querySelectorAll('.tool[data-draw]').forEach(b => b.classList.remove('active'));
+      if (wasActive) { armDraw(null); }
+      else { btn.classList.add('active'); armDraw(btn.dataset.draw); }
+    }
+    else if (btn.dataset.action === 'clear') { drawings = []; pendingTrend = null; redrawDrawings(); }
+    else if (btn.dataset.action === 'fit') { chart.timeScale().fitContent(); }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   8. RENDER — stats, meter, histogram, table, backtest
+   ═══════════════════════════════════════════════════════════════════════════ */
+function renderStats() {
+  const last = RESULTS[RESULTS.length - 1];
+  const prev30 = RESULTS[RESULTS.length - 31] ?? RESULTS[0];
+  const chg30 = ((last.c - prev30.c) / prev30.c) * 100;
+  const ath = Math.max(...RESULTS.map(r => r.c));
+  const fromAth = ((last.c - ath) / ath) * 100;
   const band = getBand(last.risk);
-
   const cards = [
-    { k: 'BTC Price', v: fmtUSD(last.price), d: dateLabel(last.ts) },
-    { k: '30-Day Change', v: `${chg30 >= 0 ? '+' : ''}${chg30.toFixed(1)}%`, d: 'vs 30 days ago', cls: chg30 >= 0 ? 'up' : 'down' },
+    { k: 'BTC Price', v: fmtUSD(last.c) },
+    { k: '30-Day Change', v: `${chg30 >= 0 ? '+' : ''}${chg30.toFixed(1)}%`, cls: chg30 >= 0 ? 'up' : 'down', d: 'vs 30 days ago' },
     { k: 'All-Time High', v: fmtUSD(ath), d: `${fromAth.toFixed(1)}% from ATH`, dcls: 'down' },
-    { k: 'Fair Value (trend)', v: fmtUSD(last.trend), d: last.price < last.trend ? 'price below trend' : 'price above trend' },
-    { k: 'Risk Score', v: last.risk.toFixed(3), d: band.label + ' Risk', cls: '', vcolor: band.hex },
+    { k: 'Fair Value', v: fmtUSD(last.trend), d: last.c < last.trend ? 'price below trend' : 'price above trend' },
+    { k: 'Risk Score', v: last.risk.toFixed(3), vcolor: band.hex, d: band.label + ' Risk' },
   ];
   document.getElementById('stats-row').innerHTML = cards.map(c => `
-    <div class="stat">
-      <div class="k">${c.k}</div>
-      <div class="v ${c.cls || ''}" ${c.vcolor ? `style="color:${c.vcolor}"` : ''}>${c.v}</div>
-      <div class="d ${c.dcls || ''}">${c.d}</div>
-    </div>`).join('');
+    <div class="stat"><div class="k">${c.k}</div>
+      <div class="v ${c.cls||''}" ${c.vcolor?`style="color:${c.vcolor}"`:''}>${c.v}</div>
+      <div class="d ${c.dcls||''}">${c.d||''}</div></div>`).join('');
 }
 
-function renderGauge(risk) {
+function renderMeter(risk) {
   const band = getBand(risk);
-  // needle sweeps from -90deg (risk 0) to +90deg (risk 1)
-  document.getElementById('needle').style.transform = `rotate(${-90 + risk * 180}deg)`;
-  const gv = document.getElementById('gauge-val');
-  gv.textContent = risk.toFixed(3);
-  gv.style.color = band.hex;
-  document.getElementById('gauge-label').textContent = band.label + ' Risk';
-  document.getElementById('gauge-label').style.color = band.hex;
-  document.getElementById('gauge-action').textContent =
-    band.mult > 0 ? `Buy ${band.mult}× your base amount`
-    : band.mult === 0 ? 'Hold — no new buys'
-    : 'Reduce / exit position';
+  document.getElementById('m-num').textContent = risk.toFixed(3);
+  document.getElementById('m-num').style.color = band.hex;
+  const lab = document.getElementById('m-lab');
+  lab.textContent = band.label + ' Risk'; lab.style.color = band.hex;
+  document.getElementById('m-action').textContent =
+    band.mult > 0 ? `Buy ${band.mult}× your base amount` : band.mult === 0 ? 'Hold — no new buys' : 'Reduce / exit position';
+  document.getElementById('m-needle').style.left = `${(risk * 100).toFixed(1)}%`;
 }
 
-function renderMainChart(results) {
-  new Chart(document.getElementById('mainChart'), {
-    data: {
-      labels: results.map(r => dateLabel(r.ts)),
-      datasets: [
-        { type: 'line', label: 'BTC Price', data: results.map(r => r.price), borderColor: '#cdd6e0', borderWidth: 1.4, pointRadius: 0, yAxisID: 'yP', tension: 0.05 },
-        { type: 'line', label: 'Fair Value', data: results.map(r => r.trend), borderColor: '#5a6573', borderWidth: 1, borderDash: [5, 5], pointRadius: 0, yAxisID: 'yP' },
-        { type: 'line', label: 'Risk', data: results.map(r => r.risk), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.10)', borderWidth: 1.4, pointRadius: 0, yAxisID: 'yR', fill: true },
-      ],
-    },
-    options: chartOpts(true),
-  });
-}
-
-function renderHistogram(results) {
+function renderHistogram() {
   const counts = BANDS.map(() => 0);
-  for (const r of results) counts[BANDS.indexOf(getBand(r.risk))]++;
-  const pct = counts.map(c => (c / results.length * 100));
+  for (const r of RESULTS) counts[BANDS.indexOf(getBand(r.risk))]++;
+  const pct = counts.map(c => c / RESULTS.length * 100);
   new Chart(document.getElementById('histChart'), {
     type: 'bar',
-    data: {
-      labels: BANDS.map(b => b.label),
-      datasets: [{ data: pct, backgroundColor: BANDS.map(b => b.hex), borderRadius: 5 }],
-    },
+    data: { labels: BANDS.map(b => b.label), datasets: [{ data: pct, backgroundColor: BANDS.map(b => b.hex), borderRadius: 5 }] },
     options: {
       animation: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: c => ` ${c.raw.toFixed(1)}% of days` } },
-      },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.raw.toFixed(1)}% of days` } } },
       scales: {
-        x: { ticks: { color: '#7d8896', font: { size: 10 } }, grid: { display: false } },
-        y: { ticks: { color: '#4a525e', callback: v => v + '%' }, grid: { color: '#141a23' } },
+        x: { ticks: { color: '#8a8a8d', font: { size: 10 } }, grid: { display: false } },
+        y: { ticks: { color: '#525255', callback: v => v + '%' }, grid: { color: '#141a23' } },
       },
     },
   });
-}
-
-function chartOpts(dual) {
-  return {
-    animation: false,
-    interaction: { mode: 'index', intersect: false },
-    plugins: {
-      legend: { labels: { color: '#7d8896', font: { size: 11 }, filter: i => i.text !== 'Fair Value' } },
-      tooltip: {
-        backgroundColor: '#111720', borderColor: '#1f2733', borderWidth: 1,
-        titleColor: '#7d8896', bodyColor: '#e6edf3',
-        callbacks: { label: c => c.dataset.yAxisID === 'yR' ? ` Risk: ${Number(c.raw).toFixed(3)}` : ` ${c.dataset.label}: ${fmtUSD(c.raw)}` },
-      },
-    },
-    scales: {
-      x: { ticks: { color: '#4a525e', maxTicksLimit: 9, maxRotation: 0, font: { size: 10 } }, grid: { color: '#141a23' } },
-      yP: { type: 'logarithmic', position: 'left', ticks: { color: '#7d8896', font: { size: 10 }, callback: v => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}` }, grid: { color: '#141a23' } },
-      yR: { type: 'linear', position: 'right', min: 0, max: 1, ticks: { color: '#3b82f6', stepSize: 0.25, font: { size: 10 } }, grid: { drawOnChartArea: false } },
-    },
-  };
 }
 
 function renderBandTable(risk) {
@@ -421,81 +483,67 @@ function renderBandTable(risk) {
     const active = risk >= b.min && risk < b.max;
     const m = b.mult > 0 ? `${b.mult}×` : b.mult === 0 ? 'Hold' : 'Sell';
     return `<tr class="${active ? 'active' : ''}">
-      <td><span class="dot" style="background:${b.hex}"></span>${b.label}${active ? ' <span class="here">◀</span>' : ''}</td>
-      <td>${b.min.toFixed(2)}–${b.max.toFixed(2)}</td>
-      <td>${b.action}</td>
-      <td>${m}</td>
-    </tr>`;
+      <td><span class="dot" style="background:${b.hex}"></span>${b.label}${active ? ' ◀' : ''}</td>
+      <td>${b.min.toFixed(2)}–${b.max.toFixed(2)}</td><td>${b.action}</td><td>${m}</td></tr>`;
   }).join('');
 }
 
-/* ── Backtest: weekly buys, dynamic (risk-scaled) vs flat ── */
-let RESULTS = [];
 function runBacktest() {
   const weekly = Math.max(1, Number(document.getElementById('bt-amount').value) || 100);
   const startVal = document.getElementById('bt-start').value;
-  const startTs = startVal ? new Date(startVal).getTime() : RESULTS[0].ts;
-
-  const data = RESULTS.filter(r => r.ts >= startTs);
+  const startSec = startVal ? new Date(startVal).getTime() / 1000 : RESULTS[0].t;
+  const data = RESULTS.filter(r => r.t >= startSec);
   if (data.length < 7) { document.getElementById('bt-results').innerHTML = '<p style="color:var(--text-dim)">Pick an earlier start date.</p>'; return; }
 
-  let flatSpent = 0, flatBtc = 0, dynSpent = 0, dynBtc = 0;
-  let lastWeek = -1;
+  let flatSpent = 0, flatBtc = 0, dynSpent = 0, dynBtc = 0, lastWeek = -1;
   for (const r of data) {
-    const week = Math.floor((r.ts - data[0].ts) / (7 * 86400000));
-    if (week === lastWeek) continue;      // one buy per week
+    const week = Math.floor((r.t - data[0].t) / (7 * 86400));
+    if (week === lastWeek) continue;
     lastWeek = week;
-    // flat: always invest full weekly budget
-    flatSpent += weekly; flatBtc += weekly / r.price;
-    // dynamic: scale by band multiplier (capped at budget, never negative buys here)
-    const m = Math.max(0, getBand(r.risk).mult);
-    const spend = weekly * m;
-    dynSpent += spend; dynBtc += spend / r.price;
+    flatSpent += weekly; flatBtc += weekly / r.c;
+    const spend = weekly * Math.max(0, getBand(r.risk).mult);
+    dynSpent += spend; dynBtc += spend / r.c;
   }
-  const px = data[data.length - 1].price;
+  const px = data[data.length - 1].c;
   const flatVal = flatBtc * px, dynVal = dynBtc * px;
-  const flatRoi = ((flatVal - flatSpent) / flatSpent) * 100;
-  const dynRoi  = dynSpent > 0 ? ((dynVal - dynSpent) / dynSpent) * 100 : 0;
+  const flatRoi = (flatVal - flatSpent) / flatSpent * 100;
+  const dynRoi = dynSpent > 0 ? (dynVal - dynSpent) / dynSpent * 100 : 0;
   const dynWins = dynRoi >= flatRoi;
-
-  document.getElementById('bt-results').innerHTML = `
-    <div class="bt-card ${dynWins ? 'winner' : ''}">
-      <div class="t">Dynamic DCA${dynWins ? ' · 🏆' : ''}</div>
-      <div class="big ${dynRoi >= 0 ? 'up' : 'down'}">${dynRoi >= 0 ? '+' : ''}${dynRoi.toFixed(1)}%</div>
-      <div class="row"><span>Invested</span><b>${fmtUSD(dynSpent)}</b></div>
-      <div class="row"><span>Value now</span><b>${fmtUSD(dynVal)}</b></div>
-      <div class="row"><span>BTC held</span><b>${dynBtc.toFixed(4)}</b></div>
-    </div>
-    <div class="bt-card ${!dynWins ? 'winner' : ''}">
-      <div class="t">Flat DCA${!dynWins ? ' · 🏆' : ''}</div>
-      <div class="big ${flatRoi >= 0 ? 'up' : 'down'}">${flatRoi >= 0 ? '+' : ''}${flatRoi.toFixed(1)}%</div>
-      <div class="row"><span>Invested</span><b>${fmtUSD(flatSpent)}</b></div>
-      <div class="row"><span>Value now</span><b>${fmtUSD(flatVal)}</b></div>
-      <div class="row"><span>BTC held</span><b>${flatBtc.toFixed(4)}</b></div>
+  const card = (title, roi, spent, val, btc, win) => `
+    <div class="bt-card ${win ? 'winner' : ''}">
+      <div class="t">${title}${win ? ' · 🏆' : ''}</div>
+      <div class="big ${roi >= 0 ? 'up' : 'down'}">${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%</div>
+      <div class="row"><span>Invested</span><b>${fmtUSD(spent)}</b></div>
+      <div class="row"><span>Value now</span><b>${fmtUSD(val)}</b></div>
+      <div class="row"><span>BTC held</span><b>${btc.toFixed(4)}</b></div>
     </div>`;
+  document.getElementById('bt-results').innerHTML =
+    card('Dynamic DCA', dynRoi, dynSpent, dynVal, dynBtc, dynWins) +
+    card('Flat DCA', flatRoi, flatSpent, flatVal, flatBtc, !dynWins);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   5. MAIN
+   9. MAIN
    ═══════════════════════════════════════════════════════════════════════════ */
 (async () => {
   const status = document.getElementById('status');
   try {
     status.textContent = 'Loading history…';
-    const points = await loadData();
-
-    status.textContent = 'Fitting regression…';
-    const { slope, intercept } = fitRegression(points);
-    RESULTS = computeRisk(points, slope, intercept);
+    const bars = await loadData();
+    const { slope, intercept } = fitRegression(bars);
+    RESULTS = computeRisk(bars, slope, intercept);
     const last = RESULTS[RESULTS.length - 1];
 
-    renderStats(RESULTS);
-    renderGauge(last.risk);
-    renderMainChart(RESULTS);
-    renderHistogram(RESULTS);
+    buildChart();
+    sizeDrawLayer();
+    pushData();
+    wireToolbar();
+
+    renderStats();
+    renderMeter(last.risk);
+    renderHistogram();
     renderBandTable(last.risk);
 
-    // backtest defaults: start 4 years ago
     const fourYrsAgo = new Date(Date.now() - 4 * 365 * 86400000).toISOString().slice(0, 10);
     document.getElementById('bt-start').value = fourYrsAgo;
     document.getElementById('bt-amount').addEventListener('input', runBacktest);
