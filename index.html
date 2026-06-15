@@ -1,12 +1,513 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>Bitcoin DCA Risk</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dynamic DCA</title>
+
+  <!-- Chart.js: the charting library, loaded from a CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ─────────────────────────────────────────────────────────────────────
+       DESIGN TOKENS — define colors once as CSS variables, reuse everywhere.
+       Monotone slate base. Green = low risk / buy. Red = high risk / sell.
+       ───────────────────────────────────────────────────────────────────── */
+    :root {
+      --bg:        #0a0e14;
+      --panel:     #111720;
+      --panel-2:   #161d28;
+      --border:    #1f2733;
+      --text:      #e6edf3;
+      --text-dim:  #7d8896;
+      --text-mute: #4a525e;
+      --green:     #2ecc71;
+      --green-dim: #1e8449;
+      --red:       #e74c3c;
+      --red-dim:   #922b21;
+      --yellow:    #f1c40f;
+      --accent:    #3b82f6;
+      --mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background:
+        radial-gradient(1200px 600px at 50% -10%, #131b27 0%, var(--bg) 55%);
+      color: var(--text);
+      font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      padding: 28px 20px 60px;
+    }
+
+    .wrap { max-width: 1180px; margin: 0 auto; }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 28px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.4px; }
+    .brand .tag {
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--green);
+      border: 1px solid var(--green-dim); border-radius: 5px;
+      padding: 3px 7px;
+    }
+    #status { font-size: 0.78rem; color: var(--text-dim); font-family: var(--mono); }
+
+    /* ── Generic panel ── */
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+    }
+    .panel h2 {
+      font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 16px;
+    }
+
+    /* ── Layout grids ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+    .lower-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+    @media (max-width: 880px) {
+      .main-grid, .lower-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Stat cards ── */
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .stat .k { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-mute); margin-bottom: 7px; }
+    .stat .v { font-size: 1.35rem; font-weight: 700; font-family: var(--mono); }
+    .stat .d { font-size: 0.72rem; margin-top: 4px; color: var(--text-dim); }
+    .up { color: var(--green); } .down { color: var(--red); }
+
+    /* ── Risk gauge (semicircle via conic-gradient) ── */
+    .gauge-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+    .gauge {
+      position: relative;
+      width: 200px; height: 110px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .gauge .arc {
+      width: 200px; height: 200px; border-radius: 50%;
+      background: conic-gradient(from 270deg,
+        var(--green) 0deg, var(--yellow) 90deg, var(--red) 180deg, transparent 180deg);
+      -webkit-mask: radial-gradient(circle at 50% 50%, transparent 56px, #000 57px);
+              mask: radial-gradient(circle at 50% 50%, transparent 56px, #000 57px);
+    }
+    .gauge .needle {
+      position: absolute; left: 50%; bottom: 0;
+      width: 3px; height: 92px; background: var(--text);
+      transform-origin: bottom center;
+      transform: rotate(-90deg);
+      transition: transform 0.8s cubic-bezier(.2,.8,.2,1);
+      border-radius: 3px;
+    }
+    .gauge .hub { position: absolute; left: 50%; bottom: -6px; width: 14px; height: 14px; background: var(--text); border-radius: 50%; transform: translateX(-50%); }
+    .gauge-val { font-size: 2.4rem; font-weight: 800; font-family: var(--mono); line-height: 1; }
+    .gauge-label { font-size: 0.8rem; margin-top: 4px; font-weight: 600; }
+    .gauge-action { font-size: 0.74rem; color: var(--text-dim); margin-top: 6px; text-align: center; }
+
+    canvas { width: 100% !important; }
+
+    /* ── Band table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th { text-align: left; padding: 9px 10px; color: var(--text-mute); text-transform: uppercase; font-size: 0.64rem; letter-spacing: 0.08em; border-bottom: 1px solid var(--border); }
+    td { padding: 11px 10px; border-bottom: 1px solid #141a23; font-family: var(--mono); }
+    tr:last-child td { border-bottom: none; }
+    tr.active td { background: var(--panel-2); }
+    .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 9px; vertical-align: middle; }
+    .here { color: var(--text); font-weight: 700; font-family: var(--mono); }
+
+    /* ── Backtest controls ── */
+    .bt-controls { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-end; margin-bottom: 18px; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
+    .field input {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      border-radius: 8px; padding: 9px 12px; font-family: var(--mono); font-size: 0.9rem; width: 130px;
+    }
+    .field input:focus { outline: none; border-color: var(--accent); }
+    .bt-results { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .bt-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+    .bt-card .t { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 8px; }
+    .bt-card .big { font-size: 1.5rem; font-weight: 700; font-family: var(--mono); }
+    .bt-card .row { display: flex; justify-content: space-between; font-size: 0.78rem; font-family: var(--mono); color: var(--text-dim); margin-top: 6px; }
+    .bt-card .row b { color: var(--text); font-weight: 600; }
+    .winner { border-color: var(--green-dim); box-shadow: 0 0 0 1px var(--green-dim); }
+
+    footer { margin-top: 36px; text-align: center; font-size: 0.7rem; color: var(--text-mute); line-height: 1.8; }
+    footer a { color: var(--text-dim); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+  </style>
 </head>
 <body>
+<div class="wrap">
 
-  <h1>Bitcoin DCA Risk Indicator</h1>
-  <p>Loading data...</p>
+  <header>
+    <div class="brand">
+      <h1>Dynamic DCA</h1>
+      <span class="tag">BTC · Risk Model</span>
+    </div>
+    <div id="status">Loading…</div>
+  </header>
 
+  <!-- ── Stats row ── -->
+  <div class="stats-row" id="stats-row"></div>
+
+  <!-- ── Main: chart + gauge ── -->
+  <div class="main-grid">
+    <div class="panel">
+      <h2>Price &amp; Risk — 8.8 Year Log Regression</h2>
+      <canvas id="mainChart" height="300"></canvas>
+    </div>
+    <div class="panel">
+      <h2>Current Risk</h2>
+      <div class="gauge-wrap">
+        <div class="gauge">
+          <div class="arc"></div>
+          <div class="needle" id="needle"></div>
+          <div class="hub"></div>
+        </div>
+        <div class="gauge-val" id="gauge-val">—</div>
+        <div class="gauge-label" id="gauge-label">—</div>
+        <div class="gauge-action" id="gauge-action">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Lower: histogram + band table ── -->
+  <div class="lower-grid">
+    <div class="panel">
+      <h2>Time Spent in Each Risk Band</h2>
+      <canvas id="histChart" height="220"></canvas>
+    </div>
+    <div class="panel">
+      <h2>DCA Strategy Bands</h2>
+      <table>
+        <thead><tr><th>Band</th><th>Range</th><th>Action</th><th>Mult</th></tr></thead>
+        <tbody id="band-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Backtest simulator ── -->
+  <div class="panel">
+    <h2>Backtest — Dynamic DCA vs. Flat DCA</h2>
+    <div class="bt-controls">
+      <div class="field">
+        <label>Weekly Budget ($)</label>
+        <input id="bt-amount" type="number" value="100" min="1" />
+      </div>
+      <div class="field">
+        <label>Start From</label>
+        <input id="bt-start" type="date" />
+      </div>
+    </div>
+    <div class="bt-results" id="bt-results"></div>
+  </div>
+
+  <footer>
+    Dynamic DCA · Log-regression risk model on 8.8 years of daily BTC data (Binance) · Live price via CoinGecko<br>
+    Educational tool. Not financial advice.
+  </footer>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   1. CONFIG — the risk bands and what to do in each
+   ═══════════════════════════════════════════════════════════════════════════ */
+const BANDS = [
+  { min: 0.00, max: 0.20, color: 'var(--green)',  hex: '#2ecc71', label: 'Very Low', action: 'Accumulate Hard', mult: 3.0 },
+  { min: 0.20, max: 0.40, color: '#7fdca4',       hex: '#7fdca4', label: 'Low',      action: 'Accumulate',      mult: 2.0 },
+  { min: 0.40, max: 0.55, color: 'var(--yellow)', hex: '#f1c40f', label: 'Moderate', action: 'DCA Normal',      mult: 1.0 },
+  { min: 0.55, max: 0.70, color: '#e8a87c',       hex: '#e8a87c', label: 'Elevated', action: 'Reduce / Hold',   mult: 0.5 },
+  { min: 0.70, max: 0.85, color: '#e74c3c',       hex: '#e74c3c', label: 'High',     action: 'Take Profits',    mult: 0.0 },
+  { min: 0.85, max: 1.01, color: 'var(--red-dim)',hex: '#922b21', label: 'Extreme',  action: 'Sell / Exit',     mult: -1.0 },
+];
+const getBand = (r) => BANDS.find(b => r >= b.min && r < b.max) ?? BANDS[BANDS.length - 1];
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   2. DATA — load baked history (hybrid: file + one live price)
+   ═══════════════════════════════════════════════════════════════════════════ */
+async function loadData() {
+  // (a) baked multi-year history committed to the repo
+  const histRes = await fetch('btc-history.json');
+  const hist = await histRes.json();              // [[ts, price], ...]
+  let points = hist.map(([ts, price]) => ({ ts, price }));
+
+  // (b) try to append today's LIVE price from CoinGecko (free, no key)
+  try {
+    const liveRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+    const live = await liveRes.json();
+    const livePrice = live?.bitcoin?.usd;
+    if (livePrice) {
+      const today = Date.now();
+      // replace last point if it's the same day, else append
+      const dayMs = 86400000;
+      if (today - points[points.length - 1].ts < dayMs)
+        points[points.length - 1] = { ts: today, price: livePrice };
+      else
+        points.push({ ts: today, price: livePrice });
+    }
+  } catch (e) { /* offline / rate-limited — baked data still works */ }
+
+  return points;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. MATH — log regression + risk normalization
+   ═══════════════════════════════════════════════════════════════════════════ */
+const GENESIS = Date.UTC(2009, 0, 3);
+const daysSince = (ts) => (ts - GENESIS) / 86400000;
+
+function fitRegression(points) {
+  let n = points.length, sx = 0, sy = 0, sxy = 0, sx2 = 0;
+  for (const p of points) {
+    const x = Math.log(daysSince(p.ts)), y = Math.log(p.price);
+    sx += x; sy += y; sxy += x * y; sx2 += x * x;
+  }
+  const slope = (n * sxy - sx * sy) / (n * sx2 - sx * sx);
+  const intercept = (sy - slope * sx) / n;
+  return { slope, intercept };
+}
+const trendAt = (ts, m, b) => Math.exp(m * Math.log(daysSince(ts)) + b);
+
+function computeRisk(points, m, b) {
+  const devs = points.map(p => Math.log(p.price / trendAt(p.ts, m, b)));
+  const lo = Math.min(...devs), hi = Math.max(...devs);
+  return points.map((p, i) => ({
+    ts: p.ts, price: p.price, trend: trendAt(p.ts, m, b),
+    risk: Math.max(0, Math.min(1, (devs[i] - lo) / (hi - lo))),
+  }));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. RENDER — stats, gauge, charts, table, backtest
+   ═══════════════════════════════════════════════════════════════════════════ */
+const fmtUSD = (v, d = 0) => '$' + Number(v).toLocaleString(undefined, { maximumFractionDigits: d });
+const dateLabel = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+
+function renderStats(results) {
+  const last = results[results.length - 1];
+  const prev30 = results[results.length - 31] ?? results[0];
+  const chg30 = ((last.price - prev30.price) / prev30.price) * 100;
+  const ath = Math.max(...results.map(r => r.price));
+  const fromAth = ((last.price - ath) / ath) * 100;
+  const band = getBand(last.risk);
+
+  const cards = [
+    { k: 'BTC Price', v: fmtUSD(last.price), d: dateLabel(last.ts) },
+    { k: '30-Day Change', v: `${chg30 >= 0 ? '+' : ''}${chg30.toFixed(1)}%`, d: 'vs 30 days ago', cls: chg30 >= 0 ? 'up' : 'down' },
+    { k: 'All-Time High', v: fmtUSD(ath), d: `${fromAth.toFixed(1)}% from ATH`, dcls: 'down' },
+    { k: 'Fair Value (trend)', v: fmtUSD(last.trend), d: last.price < last.trend ? 'price below trend' : 'price above trend' },
+    { k: 'Risk Score', v: last.risk.toFixed(3), d: band.label + ' Risk', cls: '', vcolor: band.hex },
+  ];
+  document.getElementById('stats-row').innerHTML = cards.map(c => `
+    <div class="stat">
+      <div class="k">${c.k}</div>
+      <div class="v ${c.cls || ''}" ${c.vcolor ? `style="color:${c.vcolor}"` : ''}>${c.v}</div>
+      <div class="d ${c.dcls || ''}">${c.d}</div>
+    </div>`).join('');
+}
+
+function renderGauge(risk) {
+  const band = getBand(risk);
+  // needle sweeps from -90deg (risk 0) to +90deg (risk 1)
+  document.getElementById('needle').style.transform = `rotate(${-90 + risk * 180}deg)`;
+  const gv = document.getElementById('gauge-val');
+  gv.textContent = risk.toFixed(3);
+  gv.style.color = band.hex;
+  document.getElementById('gauge-label').textContent = band.label + ' Risk';
+  document.getElementById('gauge-label').style.color = band.hex;
+  document.getElementById('gauge-action').textContent =
+    band.mult > 0 ? `Buy ${band.mult}× your base amount`
+    : band.mult === 0 ? 'Hold — no new buys'
+    : 'Reduce / exit position';
+}
+
+function renderMainChart(results) {
+  new Chart(document.getElementById('mainChart'), {
+    data: {
+      labels: results.map(r => dateLabel(r.ts)),
+      datasets: [
+        { type: 'line', label: 'BTC Price', data: results.map(r => r.price), borderColor: '#cdd6e0', borderWidth: 1.4, pointRadius: 0, yAxisID: 'yP', tension: 0.05 },
+        { type: 'line', label: 'Fair Value', data: results.map(r => r.trend), borderColor: '#5a6573', borderWidth: 1, borderDash: [5, 5], pointRadius: 0, yAxisID: 'yP' },
+        { type: 'line', label: 'Risk', data: results.map(r => r.risk), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.10)', borderWidth: 1.4, pointRadius: 0, yAxisID: 'yR', fill: true },
+      ],
+    },
+    options: chartOpts(true),
+  });
+}
+
+function renderHistogram(results) {
+  const counts = BANDS.map(() => 0);
+  for (const r of results) counts[BANDS.indexOf(getBand(r.risk))]++;
+  const pct = counts.map(c => (c / results.length * 100));
+  new Chart(document.getElementById('histChart'), {
+    type: 'bar',
+    data: {
+      labels: BANDS.map(b => b.label),
+      datasets: [{ data: pct, backgroundColor: BANDS.map(b => b.hex), borderRadius: 5 }],
+    },
+    options: {
+      animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ` ${c.raw.toFixed(1)}% of days` } },
+      },
+      scales: {
+        x: { ticks: { color: '#7d8896', font: { size: 10 } }, grid: { display: false } },
+        y: { ticks: { color: '#4a525e', callback: v => v + '%' }, grid: { color: '#141a23' } },
+      },
+    },
+  });
+}
+
+function chartOpts(dual) {
+  return {
+    animation: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { labels: { color: '#7d8896', font: { size: 11 }, filter: i => i.text !== 'Fair Value' } },
+      tooltip: {
+        backgroundColor: '#111720', borderColor: '#1f2733', borderWidth: 1,
+        titleColor: '#7d8896', bodyColor: '#e6edf3',
+        callbacks: { label: c => c.dataset.yAxisID === 'yR' ? ` Risk: ${Number(c.raw).toFixed(3)}` : ` ${c.dataset.label}: ${fmtUSD(c.raw)}` },
+      },
+    },
+    scales: {
+      x: { ticks: { color: '#4a525e', maxTicksLimit: 9, maxRotation: 0, font: { size: 10 } }, grid: { color: '#141a23' } },
+      yP: { type: 'logarithmic', position: 'left', ticks: { color: '#7d8896', font: { size: 10 }, callback: v => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}` }, grid: { color: '#141a23' } },
+      yR: { type: 'linear', position: 'right', min: 0, max: 1, ticks: { color: '#3b82f6', stepSize: 0.25, font: { size: 10 } }, grid: { drawOnChartArea: false } },
+    },
+  };
+}
+
+function renderBandTable(risk) {
+  document.getElementById('band-body').innerHTML = BANDS.map(b => {
+    const active = risk >= b.min && risk < b.max;
+    const m = b.mult > 0 ? `${b.mult}×` : b.mult === 0 ? 'Hold' : 'Sell';
+    return `<tr class="${active ? 'active' : ''}">
+      <td><span class="dot" style="background:${b.hex}"></span>${b.label}${active ? ' <span class="here">◀</span>' : ''}</td>
+      <td>${b.min.toFixed(2)}–${b.max.toFixed(2)}</td>
+      <td>${b.action}</td>
+      <td>${m}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── Backtest: weekly buys, dynamic (risk-scaled) vs flat ── */
+let RESULTS = [];
+function runBacktest() {
+  const weekly = Math.max(1, Number(document.getElementById('bt-amount').value) || 100);
+  const startVal = document.getElementById('bt-start').value;
+  const startTs = startVal ? new Date(startVal).getTime() : RESULTS[0].ts;
+
+  const data = RESULTS.filter(r => r.ts >= startTs);
+  if (data.length < 7) { document.getElementById('bt-results').innerHTML = '<p style="color:var(--text-dim)">Pick an earlier start date.</p>'; return; }
+
+  let flatSpent = 0, flatBtc = 0, dynSpent = 0, dynBtc = 0;
+  let lastWeek = -1;
+  for (const r of data) {
+    const week = Math.floor((r.ts - data[0].ts) / (7 * 86400000));
+    if (week === lastWeek) continue;      // one buy per week
+    lastWeek = week;
+    // flat: always invest full weekly budget
+    flatSpent += weekly; flatBtc += weekly / r.price;
+    // dynamic: scale by band multiplier (capped at budget, never negative buys here)
+    const m = Math.max(0, getBand(r.risk).mult);
+    const spend = weekly * m;
+    dynSpent += spend; dynBtc += spend / r.price;
+  }
+  const px = data[data.length - 1].price;
+  const flatVal = flatBtc * px, dynVal = dynBtc * px;
+  const flatRoi = ((flatVal - flatSpent) / flatSpent) * 100;
+  const dynRoi  = dynSpent > 0 ? ((dynVal - dynSpent) / dynSpent) * 100 : 0;
+  const dynWins = dynRoi >= flatRoi;
+
+  document.getElementById('bt-results').innerHTML = `
+    <div class="bt-card ${dynWins ? 'winner' : ''}">
+      <div class="t">Dynamic DCA${dynWins ? ' · 🏆' : ''}</div>
+      <div class="big ${dynRoi >= 0 ? 'up' : 'down'}">${dynRoi >= 0 ? '+' : ''}${dynRoi.toFixed(1)}%</div>
+      <div class="row"><span>Invested</span><b>${fmtUSD(dynSpent)}</b></div>
+      <div class="row"><span>Value now</span><b>${fmtUSD(dynVal)}</b></div>
+      <div class="row"><span>BTC held</span><b>${dynBtc.toFixed(4)}</b></div>
+    </div>
+    <div class="bt-card ${!dynWins ? 'winner' : ''}">
+      <div class="t">Flat DCA${!dynWins ? ' · 🏆' : ''}</div>
+      <div class="big ${flatRoi >= 0 ? 'up' : 'down'}">${flatRoi >= 0 ? '+' : ''}${flatRoi.toFixed(1)}%</div>
+      <div class="row"><span>Invested</span><b>${fmtUSD(flatSpent)}</b></div>
+      <div class="row"><span>Value now</span><b>${fmtUSD(flatVal)}</b></div>
+      <div class="row"><span>BTC held</span><b>${flatBtc.toFixed(4)}</b></div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. MAIN
+   ═══════════════════════════════════════════════════════════════════════════ */
+(async () => {
+  const status = document.getElementById('status');
+  try {
+    status.textContent = 'Loading history…';
+    const points = await loadData();
+
+    status.textContent = 'Fitting regression…';
+    const { slope, intercept } = fitRegression(points);
+    RESULTS = computeRisk(points, slope, intercept);
+    const last = RESULTS[RESULTS.length - 1];
+
+    renderStats(RESULTS);
+    renderGauge(last.risk);
+    renderMainChart(RESULTS);
+    renderHistogram(RESULTS);
+    renderBandTable(last.risk);
+
+    // backtest defaults: start 4 years ago
+    const fourYrsAgo = new Date(Date.now() - 4 * 365 * 86400000).toISOString().slice(0, 10);
+    document.getElementById('bt-start').value = fourYrsAgo;
+    document.getElementById('bt-amount').addEventListener('input', runBacktest);
+    document.getElementById('bt-start').addEventListener('input', runBacktest);
+    runBacktest();
+
+    status.textContent = `${RESULTS.length} days · slope ${slope.toFixed(2)} · updated ${new Date().toLocaleTimeString()}`;
+  } catch (err) {
+    status.textContent = 'Error: ' + err.message;
+    console.error(err);
+  }
+})();
+</script>
 </body>
 </html>
