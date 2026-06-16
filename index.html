@@ -32,49 +32,63 @@
       color: var(--text);
       font-family: 'Segoe UI', system-ui, sans-serif;
       min-height: 100vh;
-      padding: 26px 24px 60px;
+      padding: 40px 40px 80px;
     }
     .wrap { max-width: 1500px; margin: 0 auto; }
     /* the chart block breaks out wider than the rest of the page */
     .wide { max-width: 1760px; margin-left: auto; margin-right: auto; }
+    .wide:fullscreen { max-width: none; width: 100vw; height: 100vh; background: var(--bg); padding: 16px 20px; overflow: hidden; }
 
     header {
       display: flex; align-items: center; justify-content: space-between;
-      flex-wrap: wrap; gap: 12px; margin-bottom: 24px;
-      padding-bottom: 16px; border-bottom: 1px solid var(--border);
+      flex-wrap: wrap; gap: 12px; margin-bottom: 28px;
     }
     .brand { display: flex; align-items: center; gap: 11px; }
-    .brand h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.4px; }
+    .brand h1 { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.5px; }
     #status { font-size: 0.76rem; color: var(--text-dim); }
 
-    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
-    .panel h2 { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 14px; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 24px; }
+    .panel h2 { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 16px; }
 
-    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 18px; }
-    .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
-    .stat .k { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-mute); margin-bottom: 7px; }
-    .stat .v { font-size: 1.35rem; font-weight: 700; }
-    .stat .d { font-size: 0.72rem; margin-top: 4px; color: var(--text-dim); }
+    /* compact single-row stat strip */
+    .stats-row { display: flex; flex-wrap: wrap; gap: 0; margin-bottom: 28px;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 8px 6px; }
+    .stat { flex: 1 1 0; min-width: 130px; padding: 8px 16px; display: flex; flex-direction: column; gap: 2px;
+      border-right: 1px solid var(--border); }
+    .stat:last-child { border-right: none; }
+    .stat .k { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-mute); }
+    .stat .v { font-size: 1.1rem; font-weight: 700; line-height: 1.2; }
+    .stat .d { font-size: 0.66rem; color: var(--text-dim); }
     .up { color: var(--green); } .down { color: var(--red); }
+    @media (max-width: 760px) { .stat { border-right: none; flex-basis: 45%; } }
 
-    /* ── Chart toolbar ── */
-    .chart-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+    /* ── Chart title + range, on one line ── */
+    .chart-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
     .chart-title { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); }
-    .toolbar { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    /* ── Toolbar: cleanly separated groups, each labeled ── */
+    .toolbar { display: flex; gap: 22px; flex-wrap: wrap; align-items: center; margin-bottom: 22px; }
+    .tool-group { display: flex; gap: 5px; align-items: center; }
+    .tool-label { font-size: 0.56rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-mute); margin-right: 4px; }
     .tool {
       display: inline-flex; align-items: center; gap: 6px;
       background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim);
       border-radius: 8px; padding: 7px 11px; font-size: 0.76rem; font-family: inherit;
-      cursor: pointer; transition: all 0.15s;
+      cursor: pointer; transition: transform 0.1s ease, filter 0.1s ease, color 0.15s, border-color 0.15s, background 0.15s;
     }
     .tool:hover { color: var(--text); border-color: #3a3a3d; }
     .tool.active { background: var(--text); color: #000; border-color: var(--text); }
     .tool svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .tool-sep { width: 1px; background: var(--border); margin: 2px 4px; }
+    .tool-sep { width: 1px; height: 22px; background: var(--border); margin: 0 5px; }
+
+    /* press feedback for every clickable button: shrink + darken while held */
+    .tool:active, .range-btn:active, .num-stepper button:active {
+      transform: scale(0.93); filter: brightness(0.8);
+    }
 
     /* range selector buttons */
     .ranges { display: flex; gap: 4px; flex-wrap: wrap; }
-    .range-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 7px; padding: 5px 10px; font-size: 0.72rem; font-family: inherit; cursor: pointer; transition: all 0.12s; }
+    .range-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 7px; padding: 5px 10px; font-size: 0.72rem; font-family: inherit; cursor: pointer; transition: transform 0.1s ease, filter 0.1s ease, color 0.12s, border-color 0.12s, background 0.12s; }
     .range-btn:hover { color: var(--text); }
     .range-btn.active { background: var(--panel-2); color: var(--text); border-color: var(--accent); }
 
@@ -95,8 +109,14 @@
     #tipbox .tv { color: var(--text); font-weight: 600; float: right; margin-left: 18px; }
     #tipbox .trow { clear: both; }
 
-    /* ── Risk meter (below chart) ── */
-    .meter-panel { margin-top: 18px; }
+    /* ── Analyze section header ── */
+    .section-head { margin-top: 64px;
+      display: flex; align-items: baseline; gap: 14px; margin-bottom: 24px; }
+    .section-title { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.5px; }
+    .section-sub { font-size: 0.82rem; color: var(--text-dim); }
+
+    /* ── Risk meter ── */
+    .meter-panel { margin-top: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 24px; }
     .meter-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; }
     .meter-score { display: flex; align-items: baseline; gap: 12px; }
     .meter-score .num { font-size: 2.6rem; font-weight: 800; line-height: 1; }
@@ -107,7 +127,7 @@
     .bar .needle { position: absolute; top: -5px; width: 4px; height: 26px; background: var(--text); border-radius: 3px; transform: translateX(-50%); transition: left 0.7s cubic-bezier(.2,.8,.2,1); box-shadow: 0 0 8px rgba(0,0,0,0.6); }
     .bar-scale { display: flex; justify-content: space-between; font-size: 0.66rem; color: var(--text-mute); margin-top: 6px; }
 
-    .lower-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 18px 0; }
+    .lower-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin: 22px 0; }
     @media (max-width: 880px) { .lower-grid { grid-template-columns: 1fr; } }
 
     table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
@@ -125,25 +145,36 @@
     .field select { cursor: pointer; }
     /* white calendar icon + dark popup for the date picker */
     .field input[type="date"] { color-scheme: dark; }
-    .field input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.7; cursor: pointer; }
-    .field input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+    .field input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1) brightness(2); opacity: 0.85; cursor: pointer; padding: 2px; border-radius: 4px;
+      transition: opacity 0.12s, background 0.12s;
+    }
+    .field input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; background: var(--border); }
     /* number stepper styled to match the site */
     .num-field { position: relative; display: inline-flex; align-items: center; }
     .num-field input { -moz-appearance: textfield; appearance: textfield; padding-right: 38px; width: 160px; }
     .num-field input::-webkit-inner-spin-button,
     .num-field input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-    .num-stepper { position: absolute; right: 6px; display: flex; flex-direction: column; gap: 2px; }
+    .num-stepper { position: absolute; right: 5px; display: flex; flex-direction: column; gap: 3px; }
     .num-stepper button {
-      width: 22px; height: 14px; padding: 0; line-height: 1;
+      width: 24px; height: 16px; padding: 0; line-height: 1;
       background: var(--bg); border: 1px solid var(--border); color: var(--text-dim);
-      border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-      transition: all 0.12s;
+      border-radius: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: transform 0.1s ease, filter 0.1s ease, color 0.12s, border-color 0.12s, background 0.12s;
     }
     .num-stepper button:hover { color: var(--text); border-color: var(--accent); background: var(--panel-2); }
-    .num-stepper svg { width: 9px; height: 9px; stroke: currentColor; fill: none; stroke-width: 2.5; }
+    .num-stepper svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* risk-adjusted price levels */
+    .levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    .level { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; border-left: 3px solid var(--accent); }
+    .level.now { box-shadow: 0 0 0 1px var(--accent); }
+    .level .lk { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 6px; }
+    .level .lv { font-size: 1.25rem; font-weight: 700; }
+    .level .ld { font-size: 0.72rem; margin-top: 5px; }
 
     .bt-results { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .bt-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+    .bt-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
     .bt-card .t { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 8px; }
     .bt-card .big { font-size: 1.5rem; font-weight: 700; }
     .bt-card .row { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-dim); margin-top: 6px; }
@@ -166,10 +197,20 @@
 
 <!-- ── Main chart (breaks out wider, no card) ── -->
 <div class="wide">
-  <div class="chart-head">
-    <div class="chart-title" id="chart-title">Price &amp; Risk · Log Regression</div>
-    <div class="toolbar" id="toolbar">
-      <!-- series type -->
+  <!-- range on the left, view + tools on the right -->
+  <div class="toolbar" id="toolbar">
+    <div class="tool-group">
+      <span class="tool-label">Range</span>
+      <div class="ranges" id="ranges">
+        <button class="range-btn" data-range="365">1Y</button>
+        <button class="range-btn" data-range="1095">3Y</button>
+        <button class="range-btn active" data-range="1825">5Y</button>
+        <button class="range-btn" data-range="all">All</button>
+      </div>
+    </div>
+
+    <div class="tool-group" style="margin-left:auto">
+      <span class="tool-label">View</span>
       <button class="tool active" data-series="candles" title="Candlesticks">
         <svg viewBox="0 0 24 24"><rect x="6" y="7" width="4" height="9"/><line x1="8" y1="4" x2="8" y2="7"/><line x1="8" y1="16" x2="8" y2="20"/><rect x="14" y="9" width="4" height="7"/><line x1="16" y1="5" x2="16" y2="9"/><line x1="16" y1="16" x2="16" y2="19"/></svg>
         Candles
@@ -179,7 +220,6 @@
         Line
       </button>
       <div class="tool-sep"></div>
-      <!-- view mode: normal vs buy-zones -->
       <button class="tool" data-mode="zones" title="Buy-zone heat map">
         <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4"/><rect x="3" y="10" width="18" height="4"/><rect x="3" y="16" width="18" height="4"/></svg>
         Buy Zones
@@ -188,8 +228,10 @@
         <svg viewBox="0 0 24 24"><path d="M3 18c3 0 4-9 7-9s4 6 7 6 2-7 4-7"/></svg>
         Risk Line
       </button>
-      <div class="tool-sep"></div>
-      <!-- drawing tools (hold & drag to draw) -->
+    </div>
+
+    <div class="tool-group">
+      <span class="tool-label">Tools</span>
       <button class="tool" data-draw="trend" title="Trend line — hold and drag">
         <svg viewBox="0 0 24 24"><line x1="4" y1="19" x2="20" y2="6"/><circle cx="4" cy="19" r="1.6"/><circle cx="20" cy="6" r="1.6"/></svg>
         Trend
@@ -210,22 +252,18 @@
         <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>
         Clear
       </button>
-      <div class="tool-sep"></div>
-      <!-- reset view -->
+    </div>
+
+    <div class="tool-group">
+      <span class="tool-label">Chart</span>
       <button class="tool" data-action="fit" title="Reset view / fit all">
-        <svg viewBox="0 0 24 24"><path d="M3 9V3h6"/><path d="M21 9V3h-6"/><path d="M3 15v6h6"/><path d="M21 15v6h-6"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 6.5 6.5 6.5"/></svg>
         Reset View
       </button>
-    </div>
-  </div>
-
-  <!-- range presets -->
-  <div class="chart-head" style="margin-bottom:10px">
-    <div class="ranges" id="ranges">
-      <button class="range-btn" data-range="365">1Y</button>
-      <button class="range-btn" data-range="1095">3Y</button>
-      <button class="range-btn active" data-range="1825">5Y</button>
-      <button class="range-btn" data-range="all">All</button>
+      <button class="tool" data-action="fullscreen" title="Toggle fullscreen">
+        <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        Fullscreen
+      </button>
     </div>
   </div>
 
@@ -237,6 +275,11 @@
 </div>
 
 <div class="wrap">
+  <div class="section-head">
+    <h2 class="section-title">Analyze</h2>
+    <span class="section-sub">Current risk, history &amp; strategy backtest</span>
+  </div>
+
   <!-- ── Risk meter (full site width) ── -->
   <div class="meter-panel">
     <div class="meter-top">
@@ -263,6 +306,15 @@
         <tbody id="band-body"></tbody>
       </table>
     </div>
+  </div>
+
+  <!-- ── Risk-adjusted price levels ── -->
+  <div class="panel" style="margin: 22px 0;">
+    <h2>Risk-Adjusted Price Levels · Today</h2>
+    <p style="font-size:0.78rem; color:var(--text-dim); margin:-6px 0 16px;">
+      What BTC price would put the model at each risk level right now. Below current price = it would take a drop to reach; above = a rally.
+    </p>
+    <div class="levels" id="levels"></div>
   </div>
 
   <!-- ── Backtest ── -->
@@ -332,39 +384,82 @@ async function loadData() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   3. MATH — log regression on closes
+   3. MATH — risk metric (Benjamin Cowen style)
+   risk = normalized [ ln(price / longSMA) · timeCorrection ]
+     • ln(price / SMA) : how stretched price is above/below its long trend MA.
+       Price crosses this MA every cycle, so the signal oscillates each cycle.
+     • timeCorrection  : (daysSinceStart)^P — diminishing returns. Each cycle
+       tops out at a smaller stretch than the last, so later peaks need a boost
+       to still register as high risk.
+     • normalize 0–1   : min/max of the corrected signal across all history.
+   This is the property the old single-regression model lacked: price genuinely
+   travels 0→1→0 through the bands every cycle.
    ═══════════════════════════════════════════════════════════════════════════ */
-const GENESIS_SEC = Date.UTC(2009, 0, 3) / 1000;
-const daysSince = (tSec) => (tSec - GENESIS_SEC) / 86400;
+// These three constants match the canonical community implementation of
+// Cowen's metric (BitcoinRaven "Bitcoin-Risk-Metric-V2"):
+//   MA = 365-day rolling mean (min_periods=1)
+//   preavg = (ln price − ln MA) × index^0.395
+//   risk   = (preavg − preavg.cummin) / (preavg.cummax − preavg.cummin)   ← EXPANDING
+const MA_WINDOW = 365;     // long moving average (canonical 365, not 350)
+const DR_EXP    = 0.395;   // diminishing-returns exponent (canonical)
 
-function fitRegression(bars) {
-  let n = bars.length, sx = 0, sy = 0, sxy = 0, sx2 = 0;
-  for (const b of bars) {
-    const x = Math.log(daysSince(b.t)), y = Math.log(b.c);
-    sx += x; sy += y; sxy += x * y; sx2 += x * x;
+let MA = [], CORR_FACTOR = [], CUM_MIN = [], CUM_MAX = [];  // per-bar cached values
+
+function computeRisk(bars) {
+  const n = bars.length;
+  MA = new Array(n);
+  CORR_FACTOR = new Array(n);
+  CUM_MIN = new Array(n);
+  CUM_MAX = new Array(n);
+
+  // 365-day rolling mean with a shrinking window at the very start
+  // (min_periods=1) so every bar has an MA.
+  let run = 0;
+  for (let i = 0; i < n; i++) {
+    run += bars[i].c;
+    if (i >= MA_WINDOW) run -= bars[i - MA_WINDOW].c;
+    MA[i] = run / Math.min(i + 1, MA_WINDOW);
   }
-  const slope = (n * sxy - sx * sy) / (n * sx2 - sx * sx);
-  const intercept = (sy - slope * sx) / n;
-  return { slope, intercept };
-}
-const trendAt = (tSec, m, b) => Math.exp(m * Math.log(daysSince(tSec)) + b);
 
-function computeRisk(bars, m, b) {
-  const devs = bars.map(x => Math.log(x.c / trendAt(x.t, m, b)));
-  const lo = Math.min(...devs), hi = Math.max(...devs);
-  return bars.map((x, i) => ({
-    ...x,
-    trend: trendAt(x.t, m, b),
-    risk: Math.max(0, Math.min(1, (devs[i] - lo) / (hi - lo))),
-  }));
+  // preavg = (ln price − ln MA) × index^0.395  (index 0,1,2…; index 0 → factor 0)
+  const pre = new Array(n);
+  for (let i = 0; i < n; i++) {
+    CORR_FACTOR[i] = Math.pow(i, DR_EXP);
+    pre[i] = Math.log(bars[i].c / MA[i]) * CORR_FACTOR[i];
+  }
+
+  // EXPANDING normalization: each bar uses the min/max seen UP TO that bar only
+  // (no future-data leakage — this is what makes early cycles hit 0 and 1).
+  //
+  // WARMUP: in the first ~year the cummax−cummin range is tiny, so a few cents of
+  // price wiggle divides by a near-zero range and slams risk between 0 and 1 —
+  // that's the violent flicker at the start of Bitcoin. It's noise, not signal.
+  // We still build the expanding bounds normally, but the RISK SCORE only becomes
+  // trustworthy after WARMUP bars; before that we hold it at the first mature
+  // value so the line is flat instead of garbage. (MA/price are untouched.)
+  const WARMUP = MA_WINDOW;   // one full MA window (~1 year)
+  let lo = Infinity, hi = -Infinity;
+  const out = bars.map((b, i) => {
+    if (pre[i] < lo) lo = pre[i];
+    if (pre[i] > hi) hi = pre[i];
+    CUM_MIN[i] = lo; CUM_MAX[i] = hi;
+    const risk = i >= WARMUP && hi > lo ? (pre[i] - lo) / (hi - lo) : null;
+    return { ...b, ma: MA[i], risk: risk == null ? null : Math.max(0, Math.min(1, risk)) };
+  });
+  // back-fill the warmup bars with the first trustworthy risk value (flat line)
+  const firstMature = out.find(r => r.risk != null)?.risk ?? 0;
+  for (const r of out) if (r.risk == null) r.risk = firstMature;
+  return out;
 }
 
-// Given a risk level (0..1), what price corresponds to it today/at time t?
-// Invert the normalization: dev = lo + risk*(hi-lo); price = trend * e^dev
-let DEV_LO = 0, DEV_HI = 1, SLOPE = 0, INTER = 0;
-function priceForRisk(tSec, risk) {
-  const dev = DEV_LO + risk * (DEV_HI - DEV_LO);
-  return trendAt(tSec, SLOPE, INTER) * Math.exp(dev);
+// Inverse: what price at bar i corresponds to a given risk level? Solve the
+// formula for price, using bar i's own expanding bounds:
+//   pre = cummin + risk·(cummax − cummin);  ln(price/MA) = pre / index^0.395
+//   price = MA · e^(pre / factor)
+function priceForRiskAt(i, risk) {
+  if (MA[i] == null || CORR_FACTOR[i] == null || CORR_FACTOR[i] === 0) return null;
+  const pre = CUM_MIN[i] + risk * (CUM_MAX[i] - CUM_MIN[i]);
+  return MA[i] * Math.exp(pre / CORR_FACTOR[i]);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -373,7 +468,6 @@ function priceForRisk(tSec, risk) {
 let RESULTS = [];
 let chart, priceChart, candleSeries, lineSeries, trendSeries, riskSeries;
 let zonesOn = false;
-let zoneSeries = [];   // band area series for buy-zone mode
 
 /* ═══════════════════════════════════════════════════════════════════════════
    5. TRADINGVIEW CHART
@@ -400,20 +494,21 @@ function buildChart() {
     upColor: '#2ecc71', downColor: '#e74c3c', borderVisible: false,
     wickUpColor: '#2ecc71', wickDownColor: '#e74c3c', priceScaleId: 'right',
   });
-  lineSeries = chart.addLineSeries({ color: '#4d9fff', lineWidth: 2, priceScaleId: 'right', visible: false });
+  lineSeries = chart.addLineSeries({ color: '#f5f5f5', lineWidth: 2, priceScaleId: 'right', visible: false });
   trendSeries = chart.addLineSeries({ color: '#e6c84f', lineWidth: 2, lineStyle: 2, priceScaleId: 'right', crosshairMarkerVisible: false });
 
-  // risk on its OWN scale, pinned to the bottom strip — OFF by default (Buy Zones shows risk better)
+  // risk on its OWN scale spanning the FULL pane height (like the reference) so
+  // it sweeps top→bottom each cycle instead of rippling along the floor.
   riskSeries = chart.addLineSeries({
-    color: '#9a9a9d', lineWidth: 2, priceScaleId: 'risk', visible: false,
+    color: '#e0524a', lineWidth: 1.5, priceScaleId: 'risk', visible: false,
     crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false,
   });
-  chart.priceScale('risk').applyOptions({ scaleMargins: { top: 0.82, bottom: 0.02 }, borderColor: '#262628' });
+  chart.priceScale('risk').applyOptions({ scaleMargins: { top: 0.05, bottom: 0.05 }, borderVisible: false });
 
   // keep drawing-overlay canvas sized to the chart
-  const ro = new ResizeObserver(() => { sizeDrawLayer(); redrawDrawings(); });
+  const ro = new ResizeObserver(() => { sizeDrawLayer(); scheduleRedraw(); });
   ro.observe(el);
-  chart.timeScale().subscribeVisibleLogicalRangeChange(() => redrawDrawings());
+  chart.timeScale().subscribeVisibleLogicalRangeChange(scheduleRedraw);
 
   // always-on crosshair tooltip
   chart.subscribeCrosshairMove(onCrosshair);
@@ -421,41 +516,162 @@ function buildChart() {
 
 function pushData() {
   candleSeries.setData(RESULTS.map(r => ({ time: r.t, open: r.o, high: r.h, low: r.l, close: r.c })));
-  lineSeries.setData(RESULTS.map(r => ({ time: r.t, value: r.c })));
-  trendSeries.setData(RESULTS.map(r => ({ time: r.t, value: r.trend })));
+  setLineColoring(false);
+  trendSeries.setData(RESULTS.filter(r => r.ma != null).map(r => ({ time: r.t, value: r.ma })));
   riskSeries.setData(RESULTS.map(r => ({ time: r.t, value: r.risk })));
 }
 
-/* ── Buy-zone heat map: horizontal price bands colored by risk band ──
-   Each band's price ceiling is priceForRisk(t, band.max), so the colored
-   areas curve upward with the regression — like the reference chart. */
-function buildZones() {
-  // build from bottom band up, each as an area series filled to its top price
-  for (const b of [...BANDS].reverse()) {
-    const s = chart.addAreaSeries({
-      priceScaleId: 'right', lineWidth: 0,
-      topColor: hexA(b.hex, 0.22), bottomColor: hexA(b.hex, 0.06), lineColor: 'transparent',
-      crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false, visible: false,
-      // do NOT let the colored zones drive the price axis — only candles/line set the scale,
-      // otherwise the top band (~$2M) squishes all the real candles to the bottom.
-      autoscaleInfoProvider: () => null,
-    });
-    s.setData(RESULTS.map(r => ({ time: r.t, value: priceForRisk(r.t, b.max) })));
-    s._band = b;
-    zoneSeries.push(s);
-  }
+// In Buy Zones mode, color the price LINE by each day's risk (green→red). In
+// normal mode it's a single blue line. Lightweight Charts supports per-point
+// `color` on a line series, so we just re-feed the data.
+function setLineColoring(byRisk) {
+  lineSeries.setData(RESULTS.map(r => byRisk
+    ? { time: r.t, value: r.c, color: getBand(r.risk).hex }
+    : { time: r.t, value: r.c }));
 }
+
+/* ── Buy-zone overlay (reference-photo style) ────────────────────────────────
+   Two solid blocks split at the regression midline: GREEN below (accumulate),
+   RED above (sell). Each half is divided into 5 sub-bands. Multiplier labels
+   (x..5x buying, y..5y selling) are auto-placed on the price line at the swing
+   highs/lows that fall inside each band. Drawn on the overlay canvas so it
+   reprojects correctly on zoom/pan and stays clipped to the chart. */
+
+// risk thresholds for the 10 sub-bands, bottom (deep buy) to top (deep sell)
+const ZONE_BANDS = [
+  { lo: 0.00, hi: 0.10, label: '5x', side: 'buy'  },
+  { lo: 0.10, hi: 0.20, label: '4x', side: 'buy'  },
+  { lo: 0.20, hi: 0.30, label: '3x', side: 'buy'  },
+  { lo: 0.30, hi: 0.40, label: '2x', side: 'buy'  },
+  { lo: 0.40, hi: 0.50, label: 'x',  side: 'buy'  },
+  { lo: 0.50, hi: 0.60, label: 'y',  side: 'sell' },
+  { lo: 0.60, hi: 0.70, label: '2y', side: 'sell' },
+  { lo: 0.70, hi: 0.80, label: '3y', side: 'sell' },
+  { lo: 0.80, hi: 0.90, label: '4y', side: 'sell' },
+  { lo: 0.90, hi: 1.00, label: '5y', side: 'sell' },
+];
+
 function hexA(hex, a) {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
 }
 function setZones(on) {
   zonesOn = on;
-  zoneSeries.forEach(s => s.applyOptions({ visible: on }));
-  document.getElementById('chart-title').textContent = on
-    ? 'Buy Zones · Price colored by accumulation multiplier'
-    : 'Price & Risk · Log Regression';
+  document.querySelectorAll('.tool[data-mode="zones"]').forEach(b => b.classList.toggle('active', on));
+  if (on) {
+    // switch to a line view colored by risk (candles can't carry a risk gradient)
+    document.querySelectorAll('.tool[data-series]').forEach(b => b.classList.toggle('active', b.dataset.series === 'line'));
+    candleSeries.applyOptions({ visible: false });
+    lineSeries.applyOptions({ visible: true });
+    setLineColoring(true);
+  } else {
+    setLineColoring(false);
+    document.querySelectorAll('.tool[data-series]').forEach(b => b.classList.toggle('active', b.dataset.series === 'candles'));
+    candleSeries.applyOptions({ visible: true });
+    lineSeries.applyOptions({ visible: false });
+  }
   redrawDrawings();
+}
+
+// Find local swing highs/lows so labels land on the peaks/dips like the photo.
+// Returns [{idx, type:'high'|'low'}] using a simple windowed extremum test.
+let SWINGS = null;
+function computeSwings() {
+  const W = 9;   // a bar is a swing if it's the extreme within +/- W bars
+  const out = [];
+  for (let i = W; i < RESULTS.length - W; i++) {
+    let hi = true, lo = true;
+    for (let j = i - W; j <= i + W; j++) {
+      if (RESULTS[j].c > RESULTS[i].c) hi = false;
+      if (RESULTS[j].c < RESULTS[i].c) lo = false;
+    }
+    if (hi) out.push({ idx: i, type: 'high' });
+    else if (lo) out.push({ idx: i, type: 'low' });
+  }
+  return out;
+}
+
+// Paint the green/red blocks, divider lines, and swing labels onto dctx.
+// Called from redrawDrawings() when zonesOn — clipped to the chart bounds.
+function drawZones() {
+  if (!SWINGS) SWINGS = computeSwings();
+  const ts = chart.timeScale();
+  const W = drawCanvas.width, H = drawCanvas.height;
+
+  // y-coordinate of a given risk level at "now" — the bands curve with the
+  // regression, but for the colored background we sample the right edge level
+  // at each visible time and stroke a smooth boundary across the pane.
+  const range = ts.getVisibleLogicalRange();
+  if (!range) return;
+  // only sample bars in (a little past) the visible window for performance
+  const i0 = Math.max(0, Math.floor(range.from) - 2);
+  const i1 = Math.min(RESULTS.length - 1, Math.ceil(range.to) + 2);
+  // subsample so we never draw more than ~1 point per 2px regardless of zoom —
+  // this keeps "All" (5390 bars × 10 bands) smooth.
+  const stepN = Math.max(1, Math.floor((i1 - i0) / (W / 2)));
+
+  // precompute x once (shared by every band) + the visible bar indices
+  const idxs = [], xs = [];
+  for (let i = i0; i <= i1; i += stepN) {
+    const x = ts.timeToCoordinate(RESULTS[i].t);
+    if (x != null) { idxs.push(i); xs.push(x); }
+  }
+
+  // Build the polyline for one risk-level boundary, reusing the shared x's
+  const boundaryY = (risk) => idxs.map((i, k) => {
+    const price = priceForRiskAt(i, risk);
+    if (price == null) return null;
+    const y = candleSeries.priceToCoordinate(price);
+    return y == null ? null : { x: xs[k], y };
+  });
+
+  // fill a band between two risk boundaries with a solid color
+  function fillBand(rLo, rHi, color) {
+    const top = boundaryY(rHi), bot = boundaryY(rLo);
+    dctx.beginPath();
+    let started = false;
+    for (let i = 0; i < top.length; i++) { if (!top[i]) continue; if (!started) { dctx.moveTo(top[i].x, top[i].y); started = true; } else dctx.lineTo(top[i].x, top[i].y); }
+    for (let i = bot.length - 1; i >= 0; i--) { if (!bot[i]) continue; dctx.lineTo(bot[i].x, bot[i].y); }
+    dctx.closePath();
+    dctx.fillStyle = color; dctx.fill();
+  }
+  // stroke a single boundary line
+  function strokeBoundary(risk, color, width) {
+    const pts = boundaryY(risk);
+    dctx.beginPath(); let started = false;
+    for (const p of pts) { if (!p) continue; if (!started) { dctx.moveTo(p.x, p.y); started = true; } else dctx.lineTo(p.x, p.y); }
+    dctx.strokeStyle = color; dctx.lineWidth = width; dctx.stroke();
+  }
+
+  // 1) solid blocks — deeper toward the extremes (5x deepest green, 5y deepest red)
+  for (const b of ZONE_BANDS) {
+    const depth = Math.abs(b.lo + 0.05 - 0.5) / 0.5;     // 0 at midline → 1 at edges
+    const a = 0.10 + depth * 0.26;
+    fillBand(b.lo, b.hi, b.side === 'buy' ? `rgba(46,204,113,${a})` : `rgba(231,76,60,${a})`);
+  }
+  // 2) thin divider lines between sub-bands + a bold midline at 0.5
+  dctx.setLineDash([]);
+  for (let r = 0.1; r < 1; r += 0.1) strokeBoundary(+r.toFixed(1), 'rgba(255,255,255,0.10)', 1);
+  strokeBoundary(0.5, 'rgba(255,255,255,0.28)', 1.4);
+
+  // 3) labels on swing highs/lows, like the photo
+  dctx.font = '700 13px Segoe UI'; dctx.textAlign = 'center';
+  for (const s of SWINGS) {
+    const r = RESULTS[s.idx];
+    const x = ts.timeToCoordinate(r.t), y = candleSeries.priceToCoordinate(r.c);
+    if (x == null || y == null || x < 0 || x > W) continue;
+    const band = ZONE_BANDS.find(b => r.risk >= b.lo && r.risk < b.hi);
+    if (!band) continue;
+    // buy labels only on dips (lows), sell labels only on peaks (highs)
+    if (band.side === 'buy' && s.type !== 'low') continue;
+    if (band.side === 'sell' && s.type !== 'high') continue;
+    const off = s.type === 'high' ? -10 : 16;
+    dctx.lineWidth = 3; dctx.strokeStyle = 'rgba(11,11,12,0.85)';
+    dctx.strokeText(band.label, x, y + off);             // dark outline for legibility
+    dctx.fillStyle = band.side === 'buy' ? '#9be8b8' : '#f3a59c';
+    dctx.fillText(band.label, x, y + off);
+  }
+  dctx.textAlign = 'left';
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -474,7 +690,7 @@ function onCrosshair(param) {
     `<div class="trow"><span class="td">High</span><span class="tv">${fmtUSD(r.h)}</span></div>` +
     `<div class="trow"><span class="td">Low</span><span class="tv">${fmtUSD(r.l)}</span></div>` +
     `<div class="trow"><span class="td">Close</span><span class="tv">${fmtUSD(r.c)}</span></div>` +
-    `<div class="trow"><span class="td">Fair Value</span><span class="tv">${fmtUSD(r.trend)}</span></div>` +
+    `<div class="trow"><span class="td">350d MA</span><span class="tv">${r.ma != null ? fmtUSD(r.ma) : '—'}</span></div>` +
     `<div class="trow"><span class="td">Risk</span><span class="tv" style="color:${band.hex}">${r.risk.toFixed(3)} · ${band.label}</span></div>`;
   const stage = document.getElementById('tvchart').getBoundingClientRect();
   let x = param.point.x + 18, y = param.point.y + 18;
@@ -563,8 +779,23 @@ function drawFib(a, b, progress) {
   }
 }
 
+// Coalesce many pan/zoom events into one redraw per animation frame — this is
+// the main lag fix for Buy Zones (the overlay was redrawing many times a frame).
+let redrawPending = false;
+function scheduleRedraw() {
+  if (redrawPending) return;
+  redrawPending = true;
+  requestAnimationFrame(() => { redrawPending = false; redrawDrawings(); });
+}
+
 function redrawDrawings() {
   dctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  if (zonesOn) {
+    dctx.save();
+    dctx.beginPath(); dctx.rect(0, 0, drawCanvas.width, drawCanvas.height); dctx.clip();
+    drawZones();
+    dctx.restore();
+  }
   for (const d of drawings) drawSegment(d, d.reveal ?? 1);
   if (dragging && dragging.start && dragging.end)
     drawSegment({ type: dragging.type, points: [dragging.start, dragging.end] }, 1);
@@ -644,8 +875,29 @@ function wireToolbar() {
     }
     else if (btn.dataset.action === 'clear') { drawings = []; dragging = null; redrawDrawings(); }
     else if (btn.dataset.action === 'fit') { applyRange(currentRange, true); }
+    else if (btn.dataset.action === 'fullscreen') { toggleFullscreen(); }
   });
 }
+
+// Fullscreen the chart block; resize the chart + overlay to fill the screen.
+function toggleFullscreen() {
+  const el = document.querySelector('.wide');
+  if (!document.fullscreenElement) el.requestFullscreen?.();
+  else document.exitFullscreen?.();
+}
+document.addEventListener('fullscreenchange', () => {
+  const fs = !!document.fullscreenElement;
+  const tv = document.getElementById('tvchart');
+  // give the container its new height, THEN force the chart to re-measure.
+  // applyOptions({}) alone won't do it — Lightweight Charts needs resize().
+  tv.style.height = fs ? 'calc(100vh - 80px)' : '600px';
+  requestAnimationFrame(() => {
+    const r = tv.getBoundingClientRect();
+    chart.resize(r.width, r.height);   // 📐 the line that actually fills the screen
+    sizeDrawLayer();
+    scheduleRedraw();
+  });
+});
 
 let currentRange = '1825';   // remembered so Reset View returns to the chosen window
 
@@ -703,7 +955,7 @@ function renderStats() {
     { k: 'BTC Price', v: fmtUSD(last.c) },
     { k: '30-Day Change', v: `${chg30 >= 0 ? '+' : ''}${chg30.toFixed(1)}%`, cls: chg30 >= 0 ? 'up' : 'down', d: 'vs 30 days ago' },
     { k: 'All-Time High', v: fmtUSD(ath), d: `${fromAth.toFixed(1)}% from ATH`, dcls: 'down' },
-    { k: 'Fair Value', v: fmtUSD(last.trend), d: last.c < last.trend ? 'price below trend' : 'price above trend' },
+    { k: '350-Day MA', v: last.ma != null ? fmtUSD(last.ma) : '—', d: (last.ma && last.c < last.ma) ? 'price below MA' : 'price above MA' },
     { k: 'Risk Score', v: last.risk.toFixed(3), vcolor: band.hex, d: band.label + ' Risk' },
   ];
   document.getElementById('stats-row').innerHTML = cards.map(c => `
@@ -721,6 +973,32 @@ function renderMeter(risk) {
   document.getElementById('m-action').textContent =
     band.mult > 0 ? `Buy ${band.mult}× your base amount` : band.mult === 0 ? 'Hold · no new buys' : 'Reduce / exit position';
   document.getElementById('m-needle').style.left = `${(risk * 100).toFixed(1)}%`;
+}
+
+// Risk-adjusted price levels: for today's bar, the price that maps to each risk
+// level (inverse of the metric), plus the % move from current price to get there.
+function renderLevels() {
+  const i = RESULTS.length - 1;
+  const now = RESULTS[i].c;
+  const targets = [
+    { r: 0.10, label: 'Risk 0.10' },
+    { r: 0.25, label: 'Risk 0.25' },
+    { r: 0.40, label: 'Risk 0.40' },
+    { r: 0.55, label: 'Risk 0.55' },
+    { r: 0.70, label: 'Risk 0.70' },
+    { r: 0.85, label: 'Risk 0.85' },
+  ];
+  document.getElementById('levels').innerHTML = targets.map(t => {
+    const price = priceForRiskAt(i, t.r);
+    const band = getBand(t.r);
+    const chg = (price - now) / now * 100;
+    const isNow = Math.abs(t.r - RESULTS[i].risk) < 0.075;
+    return `<div class="level ${isNow ? 'now' : ''}" style="border-left-color:${band.hex}">
+      <div class="lk">${t.label} · ${band.label}</div>
+      <div class="lv">${fmtUSD(price)}</div>
+      <div class="ld ${chg >= 0 ? 'up' : 'down'}">${chg >= 0 ? '+' : ''}${chg.toFixed(1)}% from now</div>
+    </div>`;
+  }).join('');
 }
 
 function renderHistogram() {
@@ -807,19 +1085,13 @@ function runBacktest() {
   try {
     status.textContent = 'Loading history…';
     const bars = await loadData();
-    const { slope, intercept } = fitRegression(bars);
-    SLOPE = slope; INTER = intercept;
-    RESULTS = computeRisk(bars, slope, intercept);
-    // capture dev bounds for the inverse (buy-zone) mapping
-    const devs = RESULTS.map(x => Math.log(x.c / x.trend));
-    DEV_LO = Math.min(...devs); DEV_HI = Math.max(...devs);
+    RESULTS = computeRisk(bars);
     RESULTS.forEach(r => byTime.set(r.t, r));
     const last = RESULTS[RESULTS.length - 1];
 
     buildChart();
     sizeDrawLayer();
     pushData();
-    buildZones();
     wireToolbar();
     wireRanges();
     wireStepper();
@@ -830,6 +1102,7 @@ function runBacktest() {
 
     renderStats();
     renderMeter(last.risk);
+    renderLevels();
     renderHistogram();
     renderBandTable(last.risk);
 
@@ -842,7 +1115,7 @@ function runBacktest() {
       document.getElementById(id).addEventListener('input', runBacktest));
     runBacktest();
 
-    status.textContent = `${RESULTS.length} days · ${isoDay(firstT)} → ${isoDay(lastT)} · slope ${slope.toFixed(2)}`;
+    status.textContent = `${RESULTS.length} days · ${isoDay(firstT)} → ${isoDay(lastT)} · ${MA_WINDOW}d MA risk model`;
   } catch (err) {
     status.textContent = 'Error: ' + err.message;
     console.error(err);
