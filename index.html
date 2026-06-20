@@ -109,6 +109,16 @@
     #tipbox .tv { color: var(--text); font-weight: 600; float: right; margin-left: 18px; }
     #tipbox .trow { clear: both; }
 
+    /* custom styled button tooltips (replaces slow native title popups) */
+    #btn-tip {
+      position: fixed; z-index: 50; pointer-events: none; display: none;
+      background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+      padding: 6px 10px; border-radius: 7px; font-size: 0.74rem; max-width: 240px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5); white-space: normal;
+      opacity: 0; transition: opacity 0.12s ease;
+    }
+    #btn-tip.show { opacity: 1; }
+
     /* ── Analyze section header ── */
     .section-head { margin-top: 64px;
       display: flex; align-items: baseline; gap: 14px; margin-bottom: 24px; }
@@ -183,6 +193,7 @@
   </style>
 </head>
 <body>
+<div id="btn-tip"></div>
 <div class="wrap">
 
   <header>
@@ -202,10 +213,10 @@
     <div class="tool-group">
       <span class="tool-label">Range</span>
       <div class="ranges" id="ranges">
-        <button class="range-btn" data-range="365">1Y</button>
-        <button class="range-btn" data-range="1095">3Y</button>
-        <button class="range-btn active" data-range="1825">5Y</button>
-        <button class="range-btn" data-range="all">All</button>
+        <button class="range-btn" data-range="365" title="Show the last 1 year">1Y</button>
+        <button class="range-btn" data-range="1095" title="Show the last 3 years">3Y</button>
+        <button class="range-btn active" data-range="1825" title="Show the last 5 years">5Y</button>
+        <button class="range-btn" data-range="all" title="Show all available history">All</button>
       </div>
     </div>
 
@@ -325,8 +336,8 @@
         <div class="num-field">
           <input id="bt-amount" type="number" value="100" min="1" step="10" />
           <div class="num-stepper">
-            <button type="button" data-step="up" aria-label="Increase"><svg viewBox="0 0 24 24"><polyline points="6 15 12 9 18 15"/></svg></button>
-            <button type="button" data-step="down" aria-label="Decrease"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
+            <button type="button" data-step="up" aria-label="Increase" title="Increase contribution"><svg viewBox="0 0 24 24"><polyline points="6 15 12 9 18 15"/></svg></button>
+            <button type="button" data-step="down" aria-label="Decrease" title="Decrease contribution"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
           </div>
         </div>
       </div>
@@ -380,6 +391,15 @@ async function loadData() {
       }
     }
   } catch (e) { /* baked data is enough */ }
+
+  // attach the baked MVRV Z-score (on-chain) to each bar, matched by day.
+  // If the file is missing/short, those bars just have z = null and the app
+  // falls back to the price-vs-MA risk model.
+  try {
+    const mvrv = await (await fetch('mvrv-history.json')).json();   // [{t, z}]
+    const byDay = new Map(mvrv.map(x => [isoDay(x.t), x.z]));
+    for (const b of bars) { const z = byDay.get(isoDay(b.t)); if (z != null) b.z = z; }
+  } catch (e) { /* no MVRV file → price-vs-MA fallback */ }
   return bars;
 }
 
@@ -404,6 +424,7 @@ const MA_WINDOW = 365;     // long moving average (canonical 365, not 350)
 const DR_EXP    = 0.395;   // diminishing-returns exponent (canonical)
 
 let MA = [], CORR_FACTOR = [], CUM_MIN = [], CUM_MAX = [];  // per-bar cached values
+let USING_MVRV = false;     // true when the risk engine is driven by MVRV Z-score
 
 function computeRisk(bars) {
   const n = bars.length;
@@ -428,27 +449,40 @@ function computeRisk(bars) {
     pre[i] = Math.log(bars[i].c / MA[i]) * CORR_FACTOR[i];
   }
 
-  // EXPANDING normalization: each bar uses the min/max seen UP TO that bar only
-  // (no future-data leakage — this is what makes early cycles hit 0 and 1).
-  //
-  // WARMUP: in the first ~year the cummax−cummin range is tiny, so a few cents of
-  // price wiggle divides by a near-zero range and slams risk between 0 and 1 —
-  // that's the violent flicker at the start of Bitcoin. It's noise, not signal.
-  // We still build the expanding bounds normally, but the RISK SCORE only becomes
-  // trustworthy after WARMUP bars; before that we hold it at the first mature
-  // value so the line is flat instead of garbage. (MA/price are untouched.)
-  const WARMUP = MA_WINDOW;   // one full MA window (~1 year)
+  // ── Pick the risk SIGNAL ──
+  // If the bars carry an MVRV Z-score (on-chain), use that as the risk driver —
+  // this is the real MVRV indicator. Otherwise fall back to the price-vs-MA
+  // "preavg" computed above. Either way we normalize the signal 0→1 with an
+  // expanding window so the score reflects only data known up to each point.
+  USING_MVRV = bars.some(b => b.z != null);
+  const signal = USING_MVRV ? bars.map(b => b.z) : pre;
+
+  // WARMUP avoids the unstable early region where the expanding range is tiny.
+  // For MVRV the data already starts "mature", so warmup is just the first valid
+  // signal bar; for price-vs-MA it's one MA window (the flicker fix).
+  const firstValid = signal.findIndex(v => v != null);
+  const WARMUP = USING_MVRV ? firstValid : MA_WINDOW;
+
   let lo = Infinity, hi = -Infinity;
   const out = bars.map((b, i) => {
-    if (pre[i] < lo) lo = pre[i];
-    if (pre[i] > hi) hi = pre[i];
+    const s = signal[i];
+    if (s != null) { if (s < lo) lo = s; if (s > hi) hi = s; }
     CUM_MIN[i] = lo; CUM_MAX[i] = hi;
-    const risk = i >= WARMUP && hi > lo ? (pre[i] - lo) / (hi - lo) : null;
+    const ok = s != null && i >= WARMUP && hi > lo;
+    const risk = ok ? (s - lo) / (hi - lo) : null;
     return { ...b, ma: MA[i], risk: risk == null ? null : Math.max(0, Math.min(1, risk)) };
   });
-  // back-fill the warmup bars with the first trustworthy risk value (flat line)
-  const firstMature = out.find(r => r.risk != null)?.risk ?? 0;
-  for (const r of out) if (r.risk == null) r.risk = firstMature;
+  if (USING_MVRV) {
+    // MVRV only exists from ~2022. Leave earlier bars' risk as null (no fake
+    // score) — the chart simply won't draw the risk line / colors before then.
+    // Back-fill only the brief in-range warmup gap, not the whole pre-2022 era.
+    for (let i = WARMUP; i < out.length; i++)
+      if (out[i].risk == null) out[i].risk = out[i - 1]?.risk ?? null;
+  } else {
+    // price-vs-MA model: back-fill the leading warmup with the first value (flat)
+    const firstMature = out.find(r => r.risk != null)?.risk ?? 0;
+    for (const r of out) if (r.risk == null) r.risk = firstMature;
+  }
   return out;
 }
 
@@ -518,14 +552,15 @@ function pushData() {
   candleSeries.setData(RESULTS.map(r => ({ time: r.t, open: r.o, high: r.h, low: r.l, close: r.c })));
   setLineColoring(false);
   trendSeries.setData(RESULTS.filter(r => r.ma != null).map(r => ({ time: r.t, value: r.ma })));
-  riskSeries.setData(RESULTS.map(r => ({ time: r.t, value: r.risk })));
+  // risk line: skip bars with no risk score (e.g. before MVRV data exists)
+  riskSeries.setData(RESULTS.filter(r => r.risk != null).map(r => ({ time: r.t, value: r.risk })));
 }
 
 // In Buy Zones mode, color the price LINE by each day's risk (green→red). In
 // normal mode it's a single blue line. Lightweight Charts supports per-point
 // `color` on a line series, so we just re-feed the data.
 function setLineColoring(byRisk) {
-  lineSeries.setData(RESULTS.map(r => byRisk
+  lineSeries.setData(RESULTS.map(r => byRisk && r.risk != null
     ? { time: r.t, value: r.c, color: getBand(r.risk).hex }
     : { time: r.t, value: r.c }));
 }
@@ -691,7 +726,10 @@ function onCrosshair(param) {
     `<div class="trow"><span class="td">Low</span><span class="tv">${fmtUSD(r.l)}</span></div>` +
     `<div class="trow"><span class="td">Close</span><span class="tv">${fmtUSD(r.c)}</span></div>` +
     `<div class="trow"><span class="td">350d MA</span><span class="tv">${r.ma != null ? fmtUSD(r.ma) : '—'}</span></div>` +
-    `<div class="trow"><span class="td">Risk</span><span class="tv" style="color:${band.hex}">${r.risk.toFixed(3)} · ${band.label}</span></div>`;
+    (USING_MVRV && r.z != null ? `<div class="trow"><span class="td">MVRV Z</span><span class="tv">${r.z.toFixed(2)}</span></div>` : '') +
+    (r.risk != null
+      ? `<div class="trow"><span class="td">Risk</span><span class="tv" style="color:${band.hex}">${r.risk.toFixed(3)} · ${band.label}</span></div>`
+      : `<div class="trow"><span class="td">Risk</span><span class="tv" style="color:var(--text-mute)">no data</span></div>`);
   const stage = document.getElementById('tvchart').getBoundingClientRect();
   let x = param.point.x + 18, y = param.point.y + 18;
   if (x + 190 > stage.width) x = param.point.x - 190;
@@ -941,6 +979,32 @@ function wireStepper() {
   });
 }
 
+// Custom styled tooltips for every button that has a title. We move the text
+// into data-tip so the browser's slow native tooltip doesn't also fire.
+function wireTooltips() {
+  const tip = document.getElementById('btn-tip');
+  document.querySelectorAll('button[title]').forEach(b => {
+    b.dataset.tip = b.getAttribute('title');
+    b.removeAttribute('title');
+    b.addEventListener('mouseenter', () => {
+      tip.textContent = b.dataset.tip;
+      tip.style.display = 'block';
+      const r = b.getBoundingClientRect();
+      // position centered below the button, clamped to the viewport
+      requestAnimationFrame(() => {
+        let x = r.left + r.width / 2 - tip.offsetWidth / 2;
+        x = Math.max(6, Math.min(x, window.innerWidth - tip.offsetWidth - 6));
+        tip.style.left = x + 'px';
+        tip.style.top = (r.bottom + 8) + 'px';
+        tip.classList.add('show');
+      });
+    });
+    const hide = () => { tip.classList.remove('show'); tip.style.display = 'none'; };
+    b.addEventListener('mouseleave', hide);
+    b.addEventListener('click', hide);
+  });
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    9. RENDER — stats, meter, histogram, table, backtest
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -955,7 +1019,9 @@ function renderStats() {
     { k: 'BTC Price', v: fmtUSD(last.c) },
     { k: '30-Day Change', v: `${chg30 >= 0 ? '+' : ''}${chg30.toFixed(1)}%`, cls: chg30 >= 0 ? 'up' : 'down', d: 'vs 30 days ago' },
     { k: 'All-Time High', v: fmtUSD(ath), d: `${fromAth.toFixed(1)}% from ATH`, dcls: 'down' },
-    { k: '350-Day MA', v: last.ma != null ? fmtUSD(last.ma) : '—', d: (last.ma && last.c < last.ma) ? 'price below MA' : 'price above MA' },
+    (USING_MVRV && last.z != null)
+      ? { k: 'MVRV Z-Score', v: last.z.toFixed(2), d: last.z < 0 ? 'below realized value' : 'above realized value' }
+      : { k: '350-Day MA', v: last.ma != null ? fmtUSD(last.ma) : '—', d: (last.ma && last.c < last.ma) ? 'price below MA' : 'price above MA' },
     { k: 'Risk Score', v: last.risk.toFixed(3), vcolor: band.hex, d: band.label + ' Risk' },
   ];
   document.getElementById('stats-row').innerHTML = cards.map(c => `
@@ -1003,8 +1069,9 @@ function renderLevels() {
 
 function renderHistogram() {
   const counts = BANDS.map(() => 0);
-  for (const r of RESULTS) counts[BANDS.indexOf(getBand(r.risk))]++;
-  const pct = counts.map(c => c / RESULTS.length * 100);
+  const scored = RESULTS.filter(r => r.risk != null);
+  for (const r of scored) counts[BANDS.indexOf(getBand(r.risk))]++;
+  const pct = counts.map(c => c / scored.length * 100);
   new Chart(document.getElementById('histChart'), {
     type: 'bar',
     data: { labels: BANDS.map(b => b.label), datasets: [{ data: pct, backgroundColor: BANDS.map(b => b.hex), borderRadius: 5 }] },
@@ -1041,11 +1108,14 @@ function runBacktest() {
 
   let flatSpent = 0, flatBtc = 0, dynSpent = 0, dynBtc = 0;
 
+  // when a bar has no risk score yet (before MVRV data), fall back to neutral 1× DCA
+  const multAt = (r) => r.risk == null ? 1 : Math.max(0, getBand(r.risk).mult);
+
   if (freq === 0) {
     // lump sum: invest the full amount once at the start
     const r = data[0];
     flatSpent = amount; flatBtc = amount / r.c;
-    const spend = amount * Math.max(0, getBand(r.risk).mult);   // dynamic scales the one-shot by risk
+    const spend = amount * multAt(r);   // dynamic scales the one-shot by risk
     dynSpent = spend; dynBtc = spend / r.c;
   } else {
     let lastBucket = -1;
@@ -1054,7 +1124,7 @@ function runBacktest() {
       if (bucket === lastBucket) continue;
       lastBucket = bucket;
       flatSpent += amount; flatBtc += amount / r.c;
-      const spend = amount * Math.max(0, getBand(r.risk).mult);
+      const spend = amount * multAt(r);
       dynSpent += spend; dynBtc += spend / r.c;
     }
   }
@@ -1095,6 +1165,7 @@ function runBacktest() {
     wireToolbar();
     wireRanges();
     wireStepper();
+    wireTooltips();
 
     // default view: 5 years from today to today (no animation on first paint)
     const firstT = RESULTS[0].t, lastT = last.t;
@@ -1115,7 +1186,7 @@ function runBacktest() {
       document.getElementById(id).addEventListener('input', runBacktest));
     runBacktest();
 
-    status.textContent = `${RESULTS.length} days · ${isoDay(firstT)} → ${isoDay(lastT)} · ${MA_WINDOW}d MA risk model`;
+    status.textContent = `${RESULTS.length} days · ${isoDay(firstT)} → ${isoDay(lastT)} · ${USING_MVRV ? 'MVRV Z-Score model' : MA_WINDOW + 'd MA risk model'}`;
   } catch (err) {
     status.textContent = 'Error: ' + err.message;
     console.error(err);
