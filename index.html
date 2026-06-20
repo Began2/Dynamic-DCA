@@ -652,8 +652,11 @@ function drawZones() {
     if (x != null) { idxs.push(i); xs.push(x); }
   }
 
-  // Build the polyline for one risk-level boundary, reusing the shared x's
+  // Build the polyline for one risk-level boundary, reusing the shared x's.
+  // Skip bars where MVRV hasn't started yet (risk == null) so zones only
+  // appear where we have a real risk score.
   const boundaryY = (risk) => idxs.map((i, k) => {
+    if (RESULTS[i].risk == null) return null;
     const price = priceForRiskAt(i, risk);
     if (price == null) return null;
     const y = candleSeries.priceToCoordinate(price);
@@ -695,6 +698,7 @@ function drawZones() {
     const r = RESULTS[s.idx];
     const x = ts.timeToCoordinate(r.t), y = candleSeries.priceToCoordinate(r.c);
     if (x == null || y == null || x < 0 || x > W) continue;
+    if (r.risk == null) continue;
     const band = ZONE_BANDS.find(b => r.risk >= b.lo && r.risk < b.hi);
     if (!band) continue;
     // buy labels only on dips (lows), sell labels only on peaks (highs)
