@@ -187,11 +187,12 @@
     .level .lv { font-size: 1.25rem; font-weight: 700; }
     .level .ld { font-size: 0.72rem; margin-top: 5px; }
 
-    .bt-results { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .bt-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
-    .bt-card .t { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 8px; }
-    .bt-card .big { font-size: 1.5rem; font-weight: 700; }
-    .bt-card .row { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-dim); margin-top: 6px; }
+    .bt-results { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .bt-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; padding: 22px 24px; }
+    .bt-card .t { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 12px; }
+    .bt-card .big { font-size: 1.7rem; font-weight: 700; margin-bottom: 14px; }
+    .bt-card .row { display: flex; justify-content: space-between; font-size: 0.82rem; color: var(--text-dim); padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .bt-card .row:last-child { border-bottom: none; }
     .bt-card .row b { color: var(--text); font-weight: 600; }
     .winner { border-color: var(--green-dim); box-shadow: 0 0 0 1px var(--green-dim); }
 
@@ -331,7 +332,7 @@
       <canvas id="histChart" height="220"></canvas>
     </div>
     <div class="panel">
-      <h2>DCA Strategy Bands</h2>
+      <h2>Strategy Bands</h2>
       <table>
         <thead><tr><th>Band</th><th>Range</th><th>Action</th><th>Mult</th></tr></thead>
         <tbody id="band-body"></tbody>
@@ -387,7 +388,7 @@
 const BANDS = [
   { min: 0.00, max: 0.20, hex: '#2ecc71', label: 'Very Low', action: 'Accumulate Hard', mult: 3.0 },
   { min: 0.20, max: 0.40, hex: '#7fdca4', label: 'Low',      action: 'Accumulate',      mult: 2.0 },
-  { min: 0.40, max: 0.55, hex: '#f1c40f', label: 'Moderate', action: 'DCA Normal',      mult: 1.0 },
+  { min: 0.40, max: 0.55, hex: '#f1c40f', label: 'Moderate', action: 'Normal Buy',      mult: 1.0 },
   { min: 0.55, max: 0.70, hex: '#e8a87c', label: 'Elevated', action: 'Reduce / Hold',   mult: 0.5 },
   { min: 0.70, max: 0.85, hex: '#e74c3c', label: 'High',     action: 'Take Profits',    mult: 0.0 },
   { min: 0.85, max: 1.01, hex: '#922b21', label: 'Extreme',  action: 'Sell / Exit',     mult: -1.0 },
