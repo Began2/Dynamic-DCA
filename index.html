@@ -207,7 +207,14 @@
     #draw-delete:hover { background: rgba(231,76,60,0.15); border-color: #e74c3c; }
     #draw-delete svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
 
-    /* measure box style - drawn on canvas */
+    /* live price+date tooltip shown while drawing */
+    #draw-cursor-tip {
+      position: absolute; z-index: 9; pointer-events: none; display: none;
+      background: rgba(20,20,21,0.92); border: 1px solid var(--border);
+      border-radius: 7px; padding: 5px 9px; font-size: 0.72rem; line-height: 1.5;
+      color: var(--text); white-space: nowrap;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    }
   </style>
 </head>
 <body>
@@ -303,6 +310,7 @@
     <button id="draw-delete" title="Delete drawing">
       <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>
     </button>
+    <div id="draw-cursor-tip"></div>
   </div>
 </div>
 
@@ -779,10 +787,8 @@ function drawZones() {
    ═══════════════════════════════════════════════════════════════════════════ */
 const tip = document.getElementById('tipbox');
 const byTime = new Map();
-function onCrosshair(param) {
-  if (!param.time || !param.point) { tip.style.display = 'none'; return; }
-  const r = byTime.get(param.time);
-  if (!r) { tip.style.display = 'none'; return; }
+
+function renderTip(r, px, py) {
   const band = getBand(r.risk);
   tip.innerHTML =
     `<div class="trow"><span class="td">${isoDay(r.t)}</span></div>` +
@@ -796,12 +802,32 @@ function onCrosshair(param) {
       ? `<div class="trow"><span class="td">Risk</span><span class="tv" style="color:${band.hex}">${r.risk.toFixed(3)} · ${band.label}</span></div>`
       : `<div class="trow"><span class="td">Risk</span><span class="tv" style="color:var(--text-mute)">no data</span></div>`);
   const stage = document.getElementById('tvchart').getBoundingClientRect();
-  let x = param.point.x + 18, y = param.point.y + 18;
-  if (x + 190 > stage.width) x = param.point.x - 190;
-  if (y + 170 > stage.height) y = param.point.y - 170;
+  let x = px + 18, y = py + 18;
+  if (x + 190 > stage.width) x = px - 190;
+  if (y + 170 > stage.height) y = py - 170;
   tip.style.left = Math.max(0, x) + 'px';
   tip.style.top = Math.max(0, y) + 'px';
   tip.style.display = 'block';
+}
+
+function onCrosshair(param) {
+  // When the drawing overlay is interactive it drives the tooltip itself via
+  // overlayShowTip(); suppress the chart's own crosshair event to avoid flicker.
+  if (drawCanvas.classList.contains('interactive')) return;
+  if (!param.time || !param.point) { tip.style.display = 'none'; return; }
+  const r = byTime.get(param.time);
+  if (!r) { tip.style.display = 'none'; return; }
+  renderTip(r, param.point.x, param.point.y);
+}
+
+// Called from the drawing overlay's mousemove so the tooltip keeps working
+// even when the overlay canvas is capturing all pointer events.
+function overlayShowTip(canvasX, canvasY) {
+  const t = chart.timeScale().coordinateToTime(canvasX);
+  if (t == null) { tip.style.display = 'none'; return; }
+  const r = byTime.get(t);
+  if (!r) { tip.style.display = 'none'; return; }
+  renderTip(r, canvasX, canvasY);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -819,6 +845,7 @@ let dragHandle = null;     // 'p0' | 'p1' | 'body' while dragging a selected dra
 let dragOffset = null;     // pixel offset from body-drag grab point
 
 const deleteBtn = document.getElementById('draw-delete');
+const drawCursorTip = document.getElementById('draw-cursor-tip');
 
 function sizeDrawLayer() {
   const r = document.getElementById('tvchart').getBoundingClientRect();
@@ -1095,12 +1122,31 @@ drawCanvas.addEventListener('mousedown', (e) => {
   forwardToChart(e);
 });
 
+function showDrawCursorTip(e, ep) {
+  if (!ep.time || ep.price == null) { drawCursorTip.style.display = 'none'; return; }
+  const dateStr = new Date(ep.time * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  drawCursorTip.innerHTML = `<span style="color:var(--text-dim)">${dateStr}</span>  <b>${fmtUSD(ep.price, 0)}</b>`;
+  drawCursorTip.style.display = 'block';
+  const stageRect = document.querySelector('.chart-stage').getBoundingClientRect();
+  let tx = (e.clientX - stageRect.left) + 14;
+  let ty = (e.clientY - stageRect.top) - 38;
+  if (tx + 200 > stageRect.width) tx -= 200;
+  if (ty < 4) ty = (e.clientY - stageRect.top) + 14;
+  drawCursorTip.style.left = tx + 'px';
+  drawCursorTip.style.top = ty + 'px';
+}
+
 drawCanvas.addEventListener('mousemove', (e) => {
   const ep = eventToPoint(e);
   if (drawMode && dragging) {
     if (ep.time == null || ep.price == null) return;
     dragging.end = { time: ep.time, price: ep.price };
+    showDrawCursorTip(e, ep);
     redrawDrawings(); return;
+  }
+  if (drawMode) {
+    // armed but not yet dragging - still show the live readout
+    showDrawCursorTip(e, ep);
   }
   if (selectedDrawing && dragHandle && e.buttons === 1) {
     const d = selectedDrawing;
@@ -1127,24 +1173,23 @@ drawCanvas.addEventListener('mousemove', (e) => {
     }
     redrawDrawings(); return;
   }
-  // hover cursor when over a drawing (no mode active); otherwise forward the
-  // move to the chart so its crosshair tooltip keeps tracking under the overlay.
+  // hover cursor when over a drawing (no mode active); always forward the
+  // move to the chart so the crosshair tooltip keeps tracking under the overlay.
   if (!drawMode) {
+    let overDrawing = false;
     for (let i = drawings.length - 1; i >= 0; i--) {
-      if (hitTest(drawings[i], ep.x, ep.y)) { drawCanvas.style.cursor = 'pointer'; return; }
+      if (hitTest(drawings[i], ep.x, ep.y)) { overDrawing = true; break; }
     }
-    drawCanvas.style.cursor = '';
-    if (e.buttons === 0) {
-      drawCanvas.style.pointerEvents = 'none';
-      const target = document.elementFromPoint(e.clientX, e.clientY);
-      drawCanvas.style.pointerEvents = '';
-      if (target && target !== drawCanvas)
-        target.dispatchEvent(new MouseEvent('mousemove', {
-          bubbles: true, cancelable: true, view: window,
-          clientX: e.clientX, clientY: e.clientY,
-        }));
-    }
+    drawCanvas.style.cursor = overDrawing ? 'pointer' : '';
+    // Drive the OHLC tooltip directly - the chart's crosshair event is suppressed
+    // while the overlay is interactive, so we do it ourselves.
+    if (e.buttons === 0) overlayShowTip(ep.x, ep.y);
   }
+});
+
+drawCanvas.addEventListener('mouseleave', () => {
+  drawCursorTip.style.display = 'none';
+  tip.style.display = 'none';
 });
 
 window.addEventListener('mouseup', (e) => {
@@ -1186,6 +1231,7 @@ function animateReveal(d) {
 function finishDraw() {
   drawMode = null; drawCanvas.classList.remove('armed');
   document.querySelectorAll('.tool[data-draw]').forEach(b => b.classList.remove('active'));
+  drawCursorTip.style.display = 'none';
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1236,7 +1282,8 @@ document.addEventListener('fullscreenchange', () => {
   const tv = document.getElementById('tvchart');
   // give the container its new height, THEN force the chart to re-measure.
   // applyOptions({}) alone won't do it - Lightweight Charts needs resize().
-  tv.style.height = fs ? 'calc(100vh - 80px)' : '600px';
+  const toolbarH = document.getElementById('toolbar').getBoundingClientRect().height;
+  tv.style.height = fs ? `calc(100vh - ${Math.round(toolbarH) + 24}px)` : '600px';
   requestAnimationFrame(() => {
     const r = tv.getBoundingClientRect();
     chart.resize(r.width, r.height);   // 📐 the line that actually fills the screen
