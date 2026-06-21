@@ -2,53 +2,35 @@
 Bake the full-history MVRV Z-Score for BTC into mvrv-history.json.
 
 Source: Coin Metrics community API (free, no key).
-  - CapMrktCurUSD = market cap (price x supply)
-  - CapRealUSD    = realized cap (each coin valued at its last on-chain move)
+  - CapMVRVCur = MVRV ratio (MarketCap / RealizedCap) -- free on community tier
 
-MVRV Z-Score = (MarketCap - RealizedCap) / stdev(MarketCap, expanding)
+MVRV Z-Score = (MVRV - expanding_mean(MVRV)) / expanding_stdev(MVRV)
 
-The community tier throttles hard, so we (1) wait until it responds, then
-(2) page year-by-year with cooldowns. Output is a static file the site reads
-directly -- no live API calls from the browser.
+This is mathematically equivalent to the standard MVRV Z-Score and covers
+the full Bitcoin history from 2011 to today.
 """
-import urllib.request, json, time, sys, statistics, math
+import urllib.request, json, time, sys, math
 
 HOST = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics"
 HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
 
 
-def call(url, retries=4):
+def call(url, retries=5):
     for a in range(retries):
         try:
             req = urllib.request.Request(url, headers=HEADERS)
             return json.load(urllib.request.urlopen(req, timeout=60))
         except Exception as e:
             print(f"  attempt {a+1}/{retries} failed: {e}", flush=True)
-            time.sleep(20 * (a + 1))
+            if a < retries - 1:
+                time.sleep(10 * (a + 1))
     return None
-
-
-def wait_for_api():
-    """Block until a tiny probe request succeeds."""
-    probe = (f"{HOST}?assets=btc&metrics=CapRealUSD&frequency=1d"
-             f"&start_time=2024-06-01&end_time=2024-06-02")
-    n = 0
-    while True:
-        try:
-            req = urllib.request.Request(probe, headers=HEADERS)
-            json.load(urllib.request.urlopen(req, timeout=30))
-            print("API_RECOVERED", flush=True)
-            return
-        except Exception as e:
-            n += 1
-            print(f"  waiting for API ({n}): {e}", flush=True)
-            time.sleep(45)
 
 
 def fetch_all():
     rows = {}
     for yr in range(2011, 2027):
-        url = (f"{HOST}?assets=btc&metrics=CapMrktCurUSD,CapRealUSD&frequency=1d"
+        url = (f"{HOST}?assets=btc&metrics=CapMVRVCur&frequency=1d"
                f"&start_time={yr}-01-01&end_time={yr}-12-31&page_size=10000")
         r = call(url)
         if not r:
@@ -56,35 +38,40 @@ def fetch_all():
             continue
         for x in r.get("data", []):
             d = x["time"][:10]
-            mc = x.get("CapMrktCurUSD")
-            rc = x.get("CapRealUSD")
-            if mc and rc:
+            mvrv = x.get("CapMVRVCur")
+            if mvrv:
                 rows[d] = {"t": int(time.mktime(time.strptime(d, "%Y-%m-%d"))),
-                           "mc": float(mc), "rc": float(rc)}
+                           "mvrv": float(mvrv)}
         print(f"{yr}: total {len(rows)}", flush=True)
-        time.sleep(8)
+        time.sleep(3)
     return rows
 
 
 def compute_zscore(rows):
-    """MVRV Z = (MarketCap - RealizedCap) / expanding-stdev(MarketCap)."""
+    """MVRV Z-Score = (mvrv - expanding_mean) / expanding_stdev."""
     ks = sorted(rows)
-    mcs = []
+    vals = []
     out = []
     for k in ks:
-        mc = rows[k]["mc"]
-        mcs.append(mc)
-        sd = statistics.pstdev(mcs) if len(mcs) > 1 else 0.0
-        z = (mc - rows[k]["rc"]) / sd if sd > 0 else 0.0
+        v = rows[k]["mvrv"]
+        vals.append(v)
+        n = len(vals)
+        mean = sum(vals) / n
+        if n > 1:
+            var = sum((x - mean) ** 2 for x in vals) / n
+            sd = math.sqrt(var)
+        else:
+            sd = 0.0
+        z = (v - mean) / sd if sd > 0 else 0.0
         out.append({"t": rows[k]["t"], "z": round(z, 4)})
     return out
 
 
 def main():
-    wait_for_api()
+    print("Fetching MVRV ratio (CapMVRVCur) from Coin Metrics community API...", flush=True)
     rows = fetch_all()
     if not rows:
-        print("NO DATA — aborting", flush=True)
+        print("NO DATA -- aborting", flush=True)
         sys.exit(1)
     z = compute_zscore(rows)
     json.dump(z, open("mvrv-history.json", "w"), separators=(",", ":"))

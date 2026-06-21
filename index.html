@@ -95,8 +95,12 @@
     /* ── Chart container + drawing overlay ── */
     .chart-stage { position: relative; }
     #tvchart { width: 100%; height: 600px; }
+    /* The overlay sits above the chart. When a draw tool is armed OR there are
+       drawings to select, it captures pointer events; otherwise clicks fall
+       through to the chart for pan/zoom (toggled via the .interactive class). */
     #drawLayer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
-    #drawLayer.armed { pointer-events: auto; cursor: crosshair; }
+    #drawLayer.armed { cursor: crosshair; }
+    #drawLayer.interactive { pointer-events: auto; }
 
     /* floating crosshair tooltip (always on) */
     #tipbox {
@@ -190,6 +194,19 @@
     .bt-card .row { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-dim); margin-top: 6px; }
     .bt-card .row b { color: var(--text); font-weight: 600; }
     .winner { border-color: var(--green-dim); box-shadow: 0 0 0 1px var(--green-dim); }
+
+    /* ── Drawing selection handles + delete button ── */
+    #draw-delete {
+      position: absolute; z-index: 20; display: none;
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 5px 8px; cursor: pointer;
+      color: #e74c3c; line-height: 1;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    #draw-delete:hover { background: rgba(231,76,60,0.15); border-color: #e74c3c; }
+    #draw-delete svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
+
+    /* measure box style - drawn on canvas */
   </style>
 </head>
 <body>
@@ -235,7 +252,7 @@
         <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4"/><rect x="3" y="10" width="18" height="4"/><rect x="3" y="16" width="18" height="4"/></svg>
         Buy Zones
       </button>
-      <button class="tool" data-mode="riskline" title="Show the 0–1 risk score as a line along the bottom">
+      <button class="tool" data-mode="riskline" title="Show the 0-1 risk score as a line along the bottom">
         <svg viewBox="0 0 24 24"><path d="M3 18c3 0 4-9 7-9s4 6 7 6 2-7 4-7"/></svg>
         Risk Line
       </button>
@@ -243,19 +260,19 @@
 
     <div class="tool-group">
       <span class="tool-label">Tools</span>
-      <button class="tool" data-draw="trend" title="Trend line — hold and drag">
+      <button class="tool" data-draw="trend" title="Trend line - hold and drag">
         <svg viewBox="0 0 24 24"><line x1="4" y1="19" x2="20" y2="6"/><circle cx="4" cy="19" r="1.6"/><circle cx="20" cy="6" r="1.6"/></svg>
         Trend
       </button>
-      <button class="tool" data-draw="hline" title="Horizontal line — hold and drag">
+      <button class="tool" data-draw="hline" title="Horizontal line - hold and drag">
         <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/></svg>
         H-Line
       </button>
-      <button class="tool" data-draw="measure" title="Measure % change — hold and drag">
+      <button class="tool" data-draw="measure" title="Measure % change - hold and drag">
         <svg viewBox="0 0 24 24"><path d="M3 16l5-5 4 4 8-8"/><path d="M14 7h6v6"/></svg>
         Measure %
       </button>
-      <button class="tool" data-draw="fib" title="Fibonacci retracement — hold and drag">
+      <button class="tool" data-draw="fib" title="Fibonacci retracement - hold and drag">
         <svg viewBox="0 0 24 24"><line x1="3" y1="5" x2="21" y2="5"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="3" y1="20" x2="21" y2="20"/></svg>
         Fib
       </button>
@@ -282,13 +299,16 @@
     <div id="tvchart"></div>
     <canvas id="drawLayer"></canvas>
     <div id="tipbox"></div>
+    <button id="draw-delete" title="Delete drawing">
+      <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>
+    </button>
   </div>
 </div>
 
 <div class="wrap">
   <div class="section-head">
     <h2 class="section-title">Analyze</h2>
-    <span class="section-sub">Current risk, history &amp; strategy backtest</span>
+    <span class="section-sub">Risk driven by MVRV Z-Score - current score, history &amp; backtest</span>
   </div>
 
   <!-- ── Risk meter (full site width) ── -->
@@ -330,7 +350,11 @@
 
   <!-- ── Backtest ── -->
   <div class="panel">
-    <h2>Backtest · Dynamic DCA vs. Flat DCA</h2>
+    <h2>Backtest · MVRV Z DCA vs. Buy &amp; Hold</h2>
+    <p style="font-size:0.78rem; color:var(--text-dim); margin:-6px 0 16px;">
+      Both strategies invest the <b style="color:var(--text)">same total money</b> over the period - only the <i>timing</i> differs.
+      Buy &amp; Hold spreads it evenly; MVRV Z DCA shifts the same dollars toward low-risk (cheaper) periods and away from high-risk ones.
+    </p>
     <div class="bt-controls">
       <div class="field"><label>Contribution ($)</label>
         <div class="num-field">
@@ -373,7 +397,7 @@ const fmtUSD = (v, d = 0) => '$' + Number(v).toLocaleString(undefined, { maximum
 const isoDay = (sec) => new Date(sec * 1000).toISOString().slice(0, 10);
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   2. DATA — baked OHLC history + live latest close
+   2. DATA - baked OHLC history + live latest close
    ═══════════════════════════════════════════════════════════════════════════ */
 async function loadData() {
   const hist = await (await fetch('btc-history.json')).json();  // [{t,o,h,l,c}], t in seconds
@@ -404,11 +428,11 @@ async function loadData() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   3. MATH — risk metric (Benjamin Cowen style)
+   3. MATH - risk metric (Benjamin Cowen style)
    risk = normalized [ ln(price / longSMA) · timeCorrection ]
      • ln(price / SMA) : how stretched price is above/below its long trend MA.
        Price crosses this MA every cycle, so the signal oscillates each cycle.
-     • timeCorrection  : (daysSinceStart)^P — diminishing returns. Each cycle
+     • timeCorrection  : (daysSinceStart)^P - diminishing returns. Each cycle
        tops out at a smaller stretch than the last, so later peaks need a boost
        to still register as high risk.
      • normalize 0–1   : min/max of the corrected signal across all history.
@@ -424,6 +448,10 @@ const MA_WINDOW = 365;     // long moving average (canonical 365, not 350)
 const DR_EXP    = 0.395;   // diminishing-returns exponent (canonical)
 
 let MA = [], CORR_FACTOR = [], CUM_MIN = [], CUM_MAX = [];  // per-bar cached values
+// Separate expanding bounds for the PRICE-vs-MA "preavg" signal. These are used
+// only to draw the Buy-Zone price bands (risk-level → price inverse), so the
+// zones always track price even when the risk SCORE is driven by MVRV instead.
+let PRE_MIN = [], PRE_MAX = [];
 let USING_MVRV = false;     // true when the risk engine is driven by MVRV Z-score
 
 function computeRisk(bars) {
@@ -449,8 +477,20 @@ function computeRisk(bars) {
     pre[i] = Math.log(bars[i].c / MA[i]) * CORR_FACTOR[i];
   }
 
+  // Expanding min/max of the price-vs-MA preavg signal. priceForRiskAt() inverts
+  // THIS to place the Buy-Zone bands at real prices, independent of the MVRV
+  // risk score. (If MVRV drove these bounds, the units wouldn't match price and
+  // the zones would float off the chart.)
+  PRE_MIN = new Array(n); PRE_MAX = new Array(n);
+  let plo = Infinity, phi = -Infinity;
+  for (let i = 0; i < n; i++) {
+    if (i >= MA_WINDOW) { if (pre[i] < plo) plo = pre[i]; if (pre[i] > phi) phi = pre[i]; }
+    PRE_MIN[i] = plo === Infinity ? 0 : plo;
+    PRE_MAX[i] = phi === -Infinity ? 0 : phi;
+  }
+
   // ── Pick the risk SIGNAL ──
-  // If the bars carry an MVRV Z-score (on-chain), use that as the risk driver —
+  // If the bars carry an MVRV Z-score (on-chain), use that as the risk driver -
   // this is the real MVRV indicator. Otherwise fall back to the price-vs-MA
   // "preavg" computed above. Either way we normalize the signal 0→1 with an
   // expanding window so the score reflects only data known up to each point.
@@ -461,7 +501,9 @@ function computeRisk(bars) {
   // For MVRV the data already starts "mature", so warmup is just the first valid
   // signal bar; for price-vs-MA it's one MA window (the flicker fix).
   const firstValid = signal.findIndex(v => v != null);
-  const WARMUP = USING_MVRV ? firstValid : MA_WINDOW;
+  // Give MVRV a short warmup so expanding min/max has ~30 days of data before
+  // showing a score; for price-vs-MA use the full MA window to suppress early noise.
+  const WARMUP = USING_MVRV ? firstValid + 30 : MA_WINDOW;
 
   let lo = Infinity, hi = -Infinity;
   const out = bars.map((b, i) => {
@@ -473,9 +515,9 @@ function computeRisk(bars) {
     return { ...b, ma: MA[i], risk: risk == null ? null : Math.max(0, Math.min(1, risk)) };
   });
   if (USING_MVRV) {
-    // MVRV only exists from ~2022. Leave earlier bars' risk as null (no fake
-    // score) — the chart simply won't draw the risk line / colors before then.
-    // Back-fill only the brief in-range warmup gap, not the whole pre-2022 era.
+    // MVRV covers the full history (2011→today). Leave any pre-warmup bars' risk
+    // as null (no fake score); back-fill only the brief in-range warmup gap so a
+    // missing day mid-series inherits the previous day's score.
     for (let i = WARMUP; i < out.length; i++)
       if (out[i].risk == null) out[i].risk = out[i - 1]?.risk ?? null;
   } else {
@@ -492,7 +534,8 @@ function computeRisk(bars) {
 //   price = MA · e^(pre / factor)
 function priceForRiskAt(i, risk) {
   if (MA[i] == null || CORR_FACTOR[i] == null || CORR_FACTOR[i] === 0) return null;
-  const pre = CUM_MIN[i] + risk * (CUM_MAX[i] - CUM_MIN[i]);
+  if (PRE_MAX[i] == null || PRE_MAX[i] <= PRE_MIN[i]) return null;
+  const pre = PRE_MIN[i] + risk * (PRE_MAX[i] - PRE_MIN[i]);
   return MA[i] * Math.exp(pre / CORR_FACTOR[i]);
 }
 
@@ -506,7 +549,7 @@ let zonesOn = false;
 /* ═══════════════════════════════════════════════════════════════════════════
    5. TRADINGVIEW CHART
    Price pane (right axis) + a separate synced Risk pane below it. Two panes
-   means risk no longer fights the price scale — fixes the zoom drift bug.
+   means risk no longer fights the price scale - fixes the zoom drift bug.
    ═══════════════════════════════════════════════════════════════════════════ */
 function buildChart() {
   const el = document.getElementById('tvchart');
@@ -627,13 +670,13 @@ function computeSwings() {
 }
 
 // Paint the green/red blocks, divider lines, and swing labels onto dctx.
-// Called from redrawDrawings() when zonesOn — clipped to the chart bounds.
+// Called from redrawDrawings() when zonesOn - clipped to the chart bounds.
 function drawZones() {
   if (!SWINGS) SWINGS = computeSwings();
   const ts = chart.timeScale();
   const W = drawCanvas.width, H = drawCanvas.height;
 
-  // y-coordinate of a given risk level at "now" — the bands curve with the
+  // y-coordinate of a given risk level at "now" - the bands curve with the
   // regression, but for the colored background we sample the right edge level
   // at each visible time and stroke a smooth boundary across the pane.
   const range = ts.getVisibleLogicalRange();
@@ -641,7 +684,7 @@ function drawZones() {
   // only sample bars in (a little past) the visible window for performance
   const i0 = Math.max(0, Math.floor(range.from) - 2);
   const i1 = Math.min(RESULTS.length - 1, Math.ceil(range.to) + 2);
-  // subsample so we never draw more than ~1 point per 2px regardless of zoom —
+  // subsample so we never draw more than ~1 point per 2px regardless of zoom -
   // this keeps "All" (5390 bars × 10 bands) smooth.
   const stepN = Math.max(1, Math.floor((i1 - i0) / (W / 2)));
 
@@ -663,25 +706,42 @@ function drawZones() {
     return y == null ? null : { x: xs[k], y };
   });
 
-  // fill a band between two risk boundaries with a solid color
+  // fill a band between two risk boundaries with a solid color.
+  // Null points end the current segment so we never bridge across the pre-MVRV gap.
   function fillBand(rLo, rHi, color) {
     const top = boundaryY(rHi), bot = boundaryY(rLo);
-    dctx.beginPath();
-    let started = false;
-    for (let i = 0; i < top.length; i++) { if (!top[i]) continue; if (!started) { dctx.moveTo(top[i].x, top[i].y); started = true; } else dctx.lineTo(top[i].x, top[i].y); }
-    for (let i = bot.length - 1; i >= 0; i--) { if (!bot[i]) continue; dctx.lineTo(bot[i].x, bot[i].y); }
-    dctx.closePath();
-    dctx.fillStyle = color; dctx.fill();
+    // find contiguous runs where both top and bot are non-null
+    let segStart = -1;
+    const flush = (end) => {
+      if (segStart < 0) return;
+      dctx.beginPath();
+      dctx.moveTo(top[segStart].x, top[segStart].y);
+      for (let j = segStart + 1; j <= end; j++) dctx.lineTo(top[j].x, top[j].y);
+      for (let j = end; j >= segStart; j--) dctx.lineTo(bot[j].x, bot[j].y);
+      dctx.closePath();
+      dctx.fillStyle = color; dctx.fill();
+      segStart = -1;
+    };
+    for (let i = 0; i < top.length; i++) {
+      if (top[i] && bot[i]) { if (segStart < 0) segStart = i; }
+      else flush(i - 1);
+    }
+    flush(top.length - 1);
   }
-  // stroke a single boundary line
+  // stroke a single boundary line, breaking on nulls
   function strokeBoundary(risk, color, width) {
     const pts = boundaryY(risk);
-    dctx.beginPath(); let started = false;
-    for (const p of pts) { if (!p) continue; if (!started) { dctx.moveTo(p.x, p.y); started = true; } else dctx.lineTo(p.x, p.y); }
-    dctx.strokeStyle = color; dctx.lineWidth = width; dctx.stroke();
+    dctx.strokeStyle = color; dctx.lineWidth = width;
+    let started = false;
+    dctx.beginPath();
+    for (const p of pts) {
+      if (!p) { if (started) { dctx.stroke(); dctx.beginPath(); started = false; } }
+      else { if (!started) { dctx.moveTo(p.x, p.y); started = true; } else dctx.lineTo(p.x, p.y); }
+    }
+    if (started) dctx.stroke();
   }
 
-  // 1) solid blocks — deeper toward the extremes (5x deepest green, 5y deepest red)
+  // 1) solid blocks - deeper toward the extremes (5x deepest green, 5y deepest red)
   for (const b of ZONE_BANDS) {
     const depth = Math.abs(b.lo + 0.05 - 0.5) / 0.5;     // 0 at midline → 1 at edges
     const a = 0.10 + depth * 0.26;
@@ -729,7 +789,7 @@ function onCrosshair(param) {
     `<div class="trow"><span class="td">High</span><span class="tv">${fmtUSD(r.h)}</span></div>` +
     `<div class="trow"><span class="td">Low</span><span class="tv">${fmtUSD(r.l)}</span></div>` +
     `<div class="trow"><span class="td">Close</span><span class="tv">${fmtUSD(r.c)}</span></div>` +
-    `<div class="trow"><span class="td">350d MA</span><span class="tv">${r.ma != null ? fmtUSD(r.ma) : '—'}</span></div>` +
+    `<div class="trow"><span class="td">365d MA</span><span class="tv">${r.ma != null ? fmtUSD(r.ma) : '-'}</span></div>` +
     (USING_MVRV && r.z != null ? `<div class="trow"><span class="td">MVRV Z</span><span class="tv">${r.z.toFixed(2)}</span></div>` : '') +
     (r.risk != null
       ? `<div class="trow"><span class="td">Risk</span><span class="tv" style="color:${band.hex}">${r.risk.toFixed(3)} · ${band.label}</span></div>`
@@ -744,15 +804,20 @@ function onCrosshair(param) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   7. DRAWING TOOLS — overlay canvas. Hold & drag. Stored in time/price coords
+   7. DRAWING TOOLS - overlay canvas. Hold & drag. Stored in time/price coords
       so they stay anchored when you zoom/pan; clipped to chart bounds so they
       never spill outside the graph.
    ═══════════════════════════════════════════════════════════════════════════ */
 const drawCanvas = document.getElementById('drawLayer');
 const dctx = drawCanvas.getContext('2d');
-let drawMode = null;           // 'trend' | 'hline' | 'measure' | 'fib' | null
-let drawings = [];             // {type, points:[{time,price}], reveal}
-let dragging = null;
+let drawMode = null;       // 'trend' | 'hline' | 'measure' | 'fib' | null
+let drawings = [];         // {type, points:[{time,price}], reveal}
+let dragging = null;       // active draw-drag
+let selectedDrawing = null; // drawing currently selected for resize/move
+let dragHandle = null;     // 'p0' | 'p1' | 'body' while dragging a selected drawing
+let dragOffset = null;     // pixel offset from body-drag grab point
+
+const deleteBtn = document.getElementById('draw-delete');
 
 function sizeDrawLayer() {
   const r = document.getElementById('tvchart').getBoundingClientRect();
@@ -767,62 +832,171 @@ function eventToPoint(e) {
   return { time: chart.timeScale().coordinateToTime(x), price: candleSeries.coordinateToPrice(y), x, y };
 }
 
-function drawSegment(d, progress = 1) {
+// Returns screen-space coords of both endpoints for a drawing
+function drawingEndpoints(d) {
+  const a = toXY(d.points[0]);
+  const b = d.points[1] ? toXY(d.points[1]) : { ...a };
+  return { a, b };
+}
+
+// Hit-test: is pixel (px,py) near this drawing? Returns 'p0'|'p1'|'body'|null
+function hitTest(d, px, py) {
+  const { a, b } = drawingEndpoints(d);
+  if (a.x == null || a.y == null) return null;
+  const HANDLE_R = 10, LINE_R = 6;
+  if (Math.hypot(px - a.x, py - a.y) < HANDLE_R) return 'p0';
+  if (b.x != null && Math.hypot(px - b.x, py - b.y) < HANDLE_R) return 'p1';
+  // line proximity for trend / measure / hline / fib
+  if (d.type === 'hline') {
+    return Math.abs(py - a.y) < LINE_R ? 'body' : null;
+  }
+  if (b.x == null || b.y == null) return null;
+  // measure & fib define a rectangle (a→b is the diagonal). Clicking anywhere
+  // inside that box should select it, not just on the diagonal line.
+  if (d.type === 'measure' || d.type === 'fib') {
+    const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x);
+    const y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
+    if (px >= x0 - LINE_R && px <= x1 + LINE_R && py >= y0 - LINE_R && py <= y1 + LINE_R) return 'body';
+    return null;
+  }
+  // trend line: proximity to the segment
+  const len2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
+  if (len2 === 0) return null;
+  const t = Math.max(0, Math.min(1, ((px - a.x) * (b.x - a.x) + (py - a.y) * (b.y - a.y)) / len2));
+  const dx = px - (a.x + t * (b.x - a.x)), dy = py - (a.y + t * (b.y - a.y));
+  return Math.hypot(dx, dy) < LINE_R ? 'body' : null;
+}
+
+function positionDeleteBtn(d) {
+  const { a, b } = drawingEndpoints(d);
+  if (a.x == null || a.y == null) return;
+  const mx = b.x != null ? (a.x + b.x) / 2 : a.x;
+  const my = b.y != null ? Math.min(a.y, b.y) : a.y;
+  const stageRect = document.querySelector('.chart-stage').getBoundingClientRect();
+  const canvasRect = drawCanvas.getBoundingClientRect();
+  const offX = canvasRect.left - stageRect.left;
+  const offY = canvasRect.top - stageRect.top;
+  deleteBtn.style.left = (offX + mx - 16) + 'px';
+  deleteBtn.style.top  = (offY + my - 36) + 'px';
+  deleteBtn.style.display = 'block';
+}
+
+function selectDrawing(d) {
+  selectedDrawing = d;
+  if (d) positionDeleteBtn(d);
+  else deleteBtn.style.display = 'none';
+  redrawDrawings();
+}
+
+// A small rounded label centered at (cx, cy) - used by the measure tool.
+function drawPill(cx, cy, text, bg, fg) {
+  dctx.font = '700 12px Segoe UI'; dctx.textAlign = 'center'; dctx.textBaseline = 'middle';
+  const padX = 8, h = 22, w = dctx.measureText(text).width + padX * 2, r = 6;
+  const x = cx - w / 2, y = cy - h / 2;
+  dctx.beginPath();
+  dctx.moveTo(x + r, y);
+  dctx.arcTo(x + w, y, x + w, y + h, r);
+  dctx.arcTo(x + w, y + h, x, y + h, r);
+  dctx.arcTo(x, y + h, x, y, r);
+  dctx.arcTo(x, y, x + w, y, r);
+  dctx.closePath();
+  dctx.fillStyle = bg; dctx.fill();
+  dctx.fillStyle = fg; dctx.fillText(text, cx, cy + 0.5);
+  dctx.textAlign = 'left'; dctx.textBaseline = 'alphabetic';
+}
+
+function drawSegment(d, progress = 1, isSelected = false) {
   const a = toXY(d.points[0]), b = toXY(d.points[1] || d.points[0]);
   if (a.x == null || a.y == null) return;
-  // clip everything to the chart area so drawings never spill outside
   dctx.save();
   dctx.beginPath(); dctx.rect(0, 0, drawCanvas.width, drawCanvas.height); dctx.clip();
 
   if (d.type === 'hline') {
-    dctx.lineWidth = 1.6; dctx.strokeStyle = '#e6c84f'; dctx.setLineDash([]);
+    dctx.lineWidth = isSelected ? 2.2 : 1.6;
+    dctx.strokeStyle = '#e6c84f'; dctx.setLineDash([]);
     dctx.beginPath(); dctx.moveTo(0, a.y); dctx.lineTo(drawCanvas.width * progress, a.y); dctx.stroke();
     dctx.fillStyle = '#e6c84f';
     dctx.font = '600 11px Segoe UI'; dctx.fillText(fmtUSD(d.points[0].price), 6, a.y - 5);
+    if (isSelected) {
+      dctx.fillStyle = '#e6c84f';
+      dctx.beginPath(); dctx.arc(a.x, a.y, 6, 0, 7); dctx.fill();
+    }
     dctx.restore(); return;
   }
   if (b.x == null || b.y == null) { dctx.restore(); return; }
   const ex = a.x + (b.x - a.x) * progress, ey = a.y + (b.y - a.y) * progress;
 
   if (d.type === 'fib') {
-    drawFib(a, b, progress); dctx.restore(); return;
+    drawFib(a, { x: ex, y: ey }, progress, isSelected); dctx.restore(); return;
   }
 
-  dctx.lineWidth = 1.6; dctx.setLineDash([]);
-  dctx.strokeStyle = d.type === 'measure' ? '#6fcf97' : '#e6c84f';
+  if (d.type === 'measure') {
+    // TradingView-style measure box: a filled rectangle from the first point to
+    // the cursor. Green when price went UP (p1 > p0), red when DOWN. A pill at
+    // the top center shows the % change; a pill at the bottom shows target price.
+    const p0 = d.points[0].price, p1 = (d.points[1] || d.points[0]).price;
+    const isGain = p1 >= p0;
+    const fill   = isGain ? 'rgba(38,166,91,0.22)'  : 'rgba(229,72,77,0.22)';
+    const border = isGain ? 'rgba(38,166,91,0.9)'   : 'rgba(229,72,77,0.9)';
+    const pill   = isGain ? '#26a65b' : '#e5484d';
+
+    const x0 = Math.min(a.x, ex), x1 = Math.max(a.x, ex);
+    const yTop = Math.min(a.y, ey), yBot = Math.max(a.y, ey);
+    const bw = x1 - x0, bh = yBot - yTop;
+    dctx.fillStyle = fill; dctx.fillRect(x0, yTop, bw, bh);
+    // top + bottom lines only (no side walls)
+    dctx.strokeStyle = border; dctx.lineWidth = isSelected ? 2.4 : 1.6; dctx.setLineDash([]);
+    dctx.beginPath();
+    dctx.moveTo(x0, yTop); dctx.lineTo(x1, yTop);
+    dctx.moveTo(x0, yBot); dctx.lineTo(x1, yBot);
+    dctx.stroke();
+
+    if (progress > 0.1 && d.points[1] && bw > 4) {
+      const cx = (x0 + x1) / 2;
+      const pct = (p1 - p0) / p0 * 100;
+      const diff = p1 - p0;
+      const pctTxt = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
+      const usdTxt = `${diff >= 0 ? '+' : '-'}${fmtUSD(Math.abs(diff))}`;
+      // top pill: % change (the headline, like the picture)
+      drawPill(cx, yTop - 12, `${pctTxt}  ·  ${usdTxt}`, pill, '#fff');
+      // bottom pill: the price at the second point
+      drawPill(cx, yBot + 12, fmtUSD(p1), 'rgba(20,20,21,0.92)', border);
+    }
+    if (isSelected) {
+      dctx.fillStyle = pill;
+      for (const p of [a, { x: ex, y: ey }]) { dctx.beginPath(); dctx.arc(p.x, p.y, 6, 0, 7); dctx.fill(); }
+    }
+    dctx.restore(); return;
+  }
+
+  // trend line
+  dctx.lineWidth = isSelected ? 2.2 : 1.6; dctx.setLineDash([]);
+  dctx.strokeStyle = '#e6c84f';
   dctx.beginPath(); dctx.moveTo(a.x, a.y); dctx.lineTo(ex, ey); dctx.stroke();
-  dctx.fillStyle = dctx.strokeStyle;
-  for (const p of [a, { x: ex, y: ey }]) { dctx.beginPath(); dctx.arc(p.x, p.y, 3, 0, 7); dctx.fill(); }
-
-  if (d.type === 'measure' && progress > 0.15) {
-    const p0 = d.points[0].price, p1 = d.points[1].price;
-    const pct = (p1 - p0) / p0 * 100;
-    const txt = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%   ${pct >= 0 ? '+' : '−'}${fmtUSD(Math.abs(p1 - p0))}`;
-    dctx.font = '600 12px Segoe UI';
-    const w = dctx.measureText(txt).width;
-    const lx = ex + 8, ly = ey - 10;
-    dctx.fillStyle = 'rgba(20,20,21,0.92)'; dctx.fillRect(lx - 6, ly - 14, w + 12, 22);
-    dctx.strokeStyle = '#262628'; dctx.lineWidth = 1; dctx.strokeRect(lx - 6, ly - 14, w + 12, 22);
-    dctx.fillStyle = pct >= 0 ? '#6fcf97' : '#e57373'; dctx.fillText(txt, lx, ly + 2);
-  }
+  const dotR = isSelected ? 6 : 3;
+  dctx.fillStyle = '#e6c84f';
+  for (const p of [a, { x: ex, y: ey }]) { dctx.beginPath(); dctx.arc(p.x, p.y, dotR, 0, 7); dctx.fill(); }
   dctx.restore();
 }
 
 const FIBS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
-function drawFib(a, b, progress) {
+function drawFib(a, b, progress, isSelected = false) {
   const x0 = Math.min(a.x, b.x), x1 = x0 + Math.abs(b.x - a.x) * progress;
   dctx.font = '600 10px Segoe UI';
   for (const f of FIBS) {
     const y = a.y + (b.y - a.y) * f;
-    dctx.strokeStyle = 'rgba(230,200,79,0.55)'; dctx.lineWidth = 1; dctx.setLineDash([4, 4]);
+    dctx.strokeStyle = 'rgba(230,200,79,0.55)'; dctx.lineWidth = isSelected ? 1.6 : 1; dctx.setLineDash([4, 4]);
     dctx.beginPath(); dctx.moveTo(x0, y); dctx.lineTo(x1, y); dctx.stroke();
     dctx.setLineDash([]);
     dctx.fillStyle = '#e6c84f'; dctx.fillText(f.toFixed(3), x1 + 4, y + 3);
   }
+  if (isSelected) {
+    dctx.fillStyle = '#e6c84f';
+    dctx.beginPath(); dctx.arc(a.x, a.y, 6, 0, 7); dctx.fill();
+    dctx.beginPath(); dctx.arc(b.x, b.y, 6, 0, 7); dctx.fill();
+  }
 }
 
-// Coalesce many pan/zoom events into one redraw per animation frame — this is
-// the main lag fix for Buy Zones (the overlay was redrawing many times a frame).
 let redrawPending = false;
 function scheduleRedraw() {
   if (redrawPending) return;
@@ -838,27 +1012,148 @@ function redrawDrawings() {
     drawZones();
     dctx.restore();
   }
-  for (const d of drawings) drawSegment(d, d.reveal ?? 1);
+  for (const d of drawings) drawSegment(d, d.reveal ?? 1, d === selectedDrawing);
   if (dragging && dragging.start && dragging.end)
     drawSegment({ type: dragging.type, points: [dragging.start, dragging.end] }, 1);
+  if (selectedDrawing) positionDeleteBtn(selectedDrawing);
 }
 
-function armDraw(mode) { drawMode = mode; dragging = null; drawCanvas.classList.toggle('armed', !!mode); }
+// The overlay should grab the mouse whenever a draw tool is armed or there are
+// drawings the user might click. Otherwise it stays transparent so the chart
+// can pan/zoom. Call this after anything that changes drawMode/drawings count.
+function updateCanvasInteractivity() {
+  const wantPointer = !!drawMode || drawings.length > 0;
+  drawCanvas.classList.toggle('interactive', wantPointer);
+}
 
+function armDraw(mode) {
+  drawMode = mode; dragging = null; selectDrawing(null);
+  drawCanvas.classList.toggle('armed', !!mode);
+  updateCanvasInteractivity();
+}
+
+// Forward a pan/zoom gesture that landed on empty canvas to the chart. A single
+// re-dispatched mousedown isn't enough - the chart needs the whole drag, so we
+// disable the canvas's pointer-events for the duration of THIS gesture (until
+// mouseup), replay the mousedown on the chart, then restore the overlay.
+let passthroughActive = false;
+function forwardToChart(e) {
+  drawCanvas.style.pointerEvents = 'none';
+  passthroughActive = true;
+  const target = document.elementFromPoint(e.clientX, e.clientY);
+  if (target && target !== drawCanvas) {
+    target.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true, cancelable: true, view: window,
+      clientX: e.clientX, clientY: e.clientY, button: e.button,
+    }));
+  }
+}
+
+// Mouse-wheel zoom must still reach the chart even when the overlay is grabbing
+// pointer events for selection. Re-dispatch the wheel onto the chart canvas.
+drawCanvas.addEventListener('wheel', (e) => {
+  if (drawMode) return;   // drawing in progress - ignore zoom
+  drawCanvas.style.pointerEvents = 'none';
+  const target = document.elementFromPoint(e.clientX, e.clientY);
+  drawCanvas.style.pointerEvents = '';
+  if (target && target !== drawCanvas) {
+    target.dispatchEvent(new WheelEvent('wheel', {
+      bubbles: true, cancelable: true, view: window,
+      clientX: e.clientX, clientY: e.clientY,
+      deltaX: e.deltaX, deltaY: e.deltaY, deltaZ: e.deltaZ, deltaMode: e.deltaMode,
+    }));
+    e.preventDefault();
+  }
+}, { passive: false });
+
+// ── Pointer events: draw mode vs select/drag mode ──
 drawCanvas.addEventListener('mousedown', (e) => {
-  if (!drawMode) return;
-  const p = eventToPoint(e);
-  if (p.time == null || p.price == null) return;
-  dragging = { type: drawMode, start: { time: p.time, price: p.price }, end: { time: p.time, price: p.price } };
+  if (drawMode) {
+    const p = eventToPoint(e);
+    if (p.time == null || p.price == null) return;
+    dragging = { type: drawMode, start: { time: p.time, price: p.price }, end: { time: p.time, price: p.price } };
+    return;
+  }
+  // select mode: click on a drawing to select it; drag handle/body to edit
+  const ep = eventToPoint(e);
+  for (let i = drawings.length - 1; i >= 0; i--) {
+    const hit = hitTest(drawings[i], ep.x, ep.y);
+    if (hit) {
+      selectDrawing(drawings[i]);
+      dragHandle = hit;
+      if (hit === 'body') {
+        const { a } = drawingEndpoints(drawings[i]);
+        dragOffset = { dx: ep.x - (a.x ?? 0), dy: ep.y - (a.y ?? 0) };
+      }
+      e.stopPropagation();
+      return;
+    }
+  }
+  // clicked empty space - deselect and let the chart handle the pan/zoom
+  selectDrawing(null);
+  forwardToChart(e);
 });
+
 drawCanvas.addEventListener('mousemove', (e) => {
-  if (!dragging) return;
-  const p = eventToPoint(e);
-  if (p.time == null || p.price == null) return;
-  dragging.end = { time: p.time, price: p.price };
-  redrawDrawings();
+  const ep = eventToPoint(e);
+  if (drawMode && dragging) {
+    if (ep.time == null || ep.price == null) return;
+    dragging.end = { time: ep.time, price: ep.price };
+    redrawDrawings(); return;
+  }
+  if (selectedDrawing && dragHandle && e.buttons === 1) {
+    const d = selectedDrawing;
+    if (dragHandle === 'p0') {
+      if (ep.time != null) d.points[0] = { time: ep.time, price: ep.price };
+    } else if (dragHandle === 'p1') {
+      if (ep.time != null && d.points[1]) d.points[1] = { time: ep.time, price: ep.price };
+    } else if (dragHandle === 'body') {
+      // move whole drawing by delta in price space
+      const { a, b } = drawingEndpoints(d);
+      const newAx = ep.x - (dragOffset?.dx ?? 0), newAy = ep.y - (dragOffset?.dy ?? 0);
+      const newTime0 = chart.timeScale().coordinateToTime(newAx);
+      const newPrice0 = candleSeries.coordinateToPrice(newAy);
+      if (newTime0 == null || newPrice0 == null) return;
+      if (d.points[1] && a.x != null && b.x != null) {
+        const dtx = (b.x - a.x), dpy = d.points[1].price - d.points[0].price;
+        const newTime1 = chart.timeScale().coordinateToTime(newAx + dtx);
+        d.points[0] = { time: newTime0, price: newPrice0 };
+        if (newTime1 != null) d.points[1] = { time: newTime1, price: newPrice0 + dpy };
+      } else {
+        d.points[0] = { time: newTime0, price: newPrice0 };
+      }
+      dragOffset = { dx: ep.x - toXY(d.points[0]).x, dy: ep.y - toXY(d.points[0]).y };
+    }
+    redrawDrawings(); return;
+  }
+  // hover cursor when over a drawing (no mode active); otherwise forward the
+  // move to the chart so its crosshair tooltip keeps tracking under the overlay.
+  if (!drawMode) {
+    for (let i = drawings.length - 1; i >= 0; i--) {
+      if (hitTest(drawings[i], ep.x, ep.y)) { drawCanvas.style.cursor = 'pointer'; return; }
+    }
+    drawCanvas.style.cursor = '';
+    if (e.buttons === 0) {
+      drawCanvas.style.pointerEvents = 'none';
+      const target = document.elementFromPoint(e.clientX, e.clientY);
+      drawCanvas.style.pointerEvents = '';
+      if (target && target !== drawCanvas)
+        target.dispatchEvent(new MouseEvent('mousemove', {
+          bubbles: true, cancelable: true, view: window,
+          clientX: e.clientX, clientY: e.clientY,
+        }));
+    }
+  }
 });
-window.addEventListener('mouseup', () => {
+
+window.addEventListener('mouseup', (e) => {
+  // end of a pan gesture that was passed through to the chart - re-arm overlay
+  if (passthroughActive) {
+    passthroughActive = false;
+    drawCanvas.style.pointerEvents = '';
+    updateCanvasInteractivity();
+  }
+  if (dragHandle) { dragHandle = null; dragOffset = null; return; }
   if (!dragging) return;
   const { start, end, type } = dragging; dragging = null;
   const a = toXY(start), b = toXY(end);
@@ -867,7 +1162,15 @@ window.addEventListener('mouseup', () => {
     const d = { type, points: [start, end], reveal: 0 };
     drawings.push(d); animateReveal(d);
   }
-  finishDraw(); redrawDrawings();
+  finishDraw(); updateCanvasInteractivity(); redrawDrawings();
+});
+
+deleteBtn.addEventListener('click', () => {
+  if (!selectedDrawing) return;
+  drawings = drawings.filter(d => d !== selectedDrawing);
+  selectDrawing(null);
+  updateCanvasInteractivity();
+  redrawDrawings();
 });
 
 function animateReveal(d) {
@@ -915,7 +1218,7 @@ function wireToolbar() {
       if (wasActive) armDraw(null);
       else { btn.classList.add('active'); armDraw(btn.dataset.draw); }
     }
-    else if (btn.dataset.action === 'clear') { drawings = []; dragging = null; redrawDrawings(); }
+    else if (btn.dataset.action === 'clear') { drawings = []; dragging = null; selectDrawing(null); updateCanvasInteractivity(); redrawDrawings(); }
     else if (btn.dataset.action === 'fit') { applyRange(currentRange, true); }
     else if (btn.dataset.action === 'fullscreen') { toggleFullscreen(); }
   });
@@ -931,7 +1234,7 @@ document.addEventListener('fullscreenchange', () => {
   const fs = !!document.fullscreenElement;
   const tv = document.getElementById('tvchart');
   // give the container its new height, THEN force the chart to re-measure.
-  // applyOptions({}) alone won't do it — Lightweight Charts needs resize().
+  // applyOptions({}) alone won't do it - Lightweight Charts needs resize().
   tv.style.height = fs ? 'calc(100vh - 80px)' : '600px';
   requestAnimationFrame(() => {
     const r = tv.getBoundingClientRect();
@@ -1010,7 +1313,7 @@ function wireTooltips() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   9. RENDER — stats, meter, histogram, table, backtest
+   9. RENDER - stats, meter, histogram, table, backtest
    ═══════════════════════════════════════════════════════════════════════════ */
 function renderStats() {
   const last = RESULTS[RESULTS.length - 1];
@@ -1025,7 +1328,7 @@ function renderStats() {
     { k: 'All-Time High', v: fmtUSD(ath), d: `${fromAth.toFixed(1)}% from ATH`, dcls: 'down' },
     (USING_MVRV && last.z != null)
       ? { k: 'MVRV Z-Score', v: last.z.toFixed(2), d: last.z < 0 ? 'below realized value' : 'above realized value' }
-      : { k: '350-Day MA', v: last.ma != null ? fmtUSD(last.ma) : '—', d: (last.ma && last.c < last.ma) ? 'price below MA' : 'price above MA' },
+      : { k: '365-Day MA', v: last.ma != null ? fmtUSD(last.ma) : '-', d: (last.ma && last.c < last.ma) ? 'price below MA' : 'price above MA' },
     { k: 'Risk Score', v: last.risk.toFixed(3), vcolor: band.hex, d: band.label + ' Risk' },
   ];
   document.getElementById('stats-row').innerHTML = cards.map(c => `
@@ -1096,7 +1399,7 @@ function renderBandTable(risk) {
     const m = b.mult > 0 ? `${b.mult}×` : b.mult === 0 ? 'Hold' : 'Sell';
     return `<tr class="${active ? 'active' : ''}">
       <td><span class="dot" style="background:${b.hex}"></span>${b.label}${active ? ' · NOW' : ''}</td>
-      <td>${b.min.toFixed(2)}–${b.max.toFixed(2)}</td><td>${b.action}</td><td>${m}</td></tr>`;
+      <td>${b.min.toFixed(2)}-${b.max.toFixed(2)}</td><td>${b.action}</td><td>${m}</td></tr>`;
   }).join('');
 }
 
@@ -1110,34 +1413,46 @@ function runBacktest() {
   const res = document.getElementById('bt-results');
   if (data.length < 2) { res.innerHTML = '<p style="color:var(--text-dim)">Widen the date range.</p>'; return; }
 
-  let flatSpent = 0, flatBtc = 0, dynSpent = 0, dynBtc = 0;
-
-  // when a bar has no risk score yet (before MVRV data), fall back to neutral 1× DCA
+  // when a bar has no risk score yet (before MVRV data), fall back to neutral 1x DCA
   const multAt = (r) => r.risk == null ? 1 : Math.max(0, getBand(r.risk).mult);
 
+  // Collect the contribution periods (one buy per bucket).
+  const periods = [];
   if (freq === 0) {
-    // lump sum: invest the full amount once at the start
-    const r = data[0];
-    flatSpent = amount; flatBtc = amount / r.c;
-    const spend = amount * multAt(r);   // dynamic scales the one-shot by risk
-    dynSpent = spend; dynBtc = spend / r.c;
+    periods.push(data[0]);                       // lump sum: a single period
   } else {
     let lastBucket = -1;
     for (const r of data) {
       const bucket = Math.floor((r.t - data[0].t) / (freq * 86400));
       if (bucket === lastBucket) continue;
       lastBucket = bucket;
-      flatSpent += amount; flatBtc += amount / r.c;
-      const spend = amount * multAt(r);
-      dynSpent += spend; dynBtc += spend / r.c;
+      periods.push(r);
     }
   }
 
+  // SAME TOTAL BUDGET for both - the comparison is purely about TIMING.
+  // Buy & Hold spreads the budget evenly across every period.
+  // MVRV Z DCA spends the same total but weights each period by its risk
+  // multiplier (more dollars into low-risk/cheap periods, none into high-risk),
+  // then rescales so the weighted spend sums to the exact same total.
+  const totalBudget = amount * periods.length;
+  const weights = periods.map(multAt);
+  const weightSum = weights.reduce((s, w) => s + w, 0);
+
+  let holdSpent = 0, holdBtc = 0, dynSpent = 0, dynBtc = 0;
+  periods.forEach((r, k) => {
+    // Buy & Hold: equal slice every period
+    holdSpent += amount; holdBtc += amount / r.c;
+    // MVRV Z DCA: same total, distributed by weight
+    const spend = weightSum > 0 ? totalBudget * weights[k] / weightSum : amount;
+    dynSpent += spend; dynBtc += spend / r.c;
+  });
+
   const px = data[data.length - 1].c;
-  const flatVal = flatBtc * px, dynVal = dynBtc * px;
-  const flatRoi = flatSpent > 0 ? (flatVal - flatSpent) / flatSpent * 100 : 0;
+  const holdVal = holdBtc * px, dynVal = dynBtc * px;
+  const holdRoi = holdSpent > 0 ? (holdVal - holdSpent) / holdSpent * 100 : 0;
   const dynRoi = dynSpent > 0 ? (dynVal - dynSpent) / dynSpent * 100 : 0;
-  const dynWins = dynRoi >= flatRoi;
+  const dynWins = dynRoi >= holdRoi;
   const card = (title, roi, spent, val, btc, win) => `
     <div class="bt-card ${win ? 'winner' : ''}">
       <div class="t">${title}${win ? ' · WINNER' : ''}</div>
@@ -1147,8 +1462,8 @@ function runBacktest() {
       <div class="row"><span>BTC held</span><b>${btc.toFixed(4)}</b></div>
     </div>`;
   res.innerHTML =
-    card('Dynamic DCA', dynRoi, dynSpent, dynVal, dynBtc, dynWins) +
-    card('Flat DCA', flatRoi, flatSpent, flatVal, flatBtc, !dynWins);
+    card('MVRV Z DCA', dynRoi, dynSpent, dynVal, dynBtc, dynWins) +
+    card('Buy &amp; Hold', holdRoi, holdSpent, holdVal, holdBtc, !dynWins);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
